@@ -8,6 +8,19 @@ npm runbuild
 npm start
 ```
 
+## Build & run
+
+```shell
+docker build -t elasticms/web-auditor .
+
+docker run --rm \
+  -e START_URL="https://ton-site.be" \
+  -e MAX_PAGES="80" \
+  -e MAX_DEPTH="4" \
+  -e CHECK_EXTERNAL_LINKS="false" \
+  elasticms/web-auditor
+```
+
 ## Code Formatting and Linting
 
 This project uses **Prettier** for automatic code formatting and **ESLint** for static code analysis.  
