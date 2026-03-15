@@ -10,6 +10,7 @@ export type CrawlOptions = {
   concurrency: number;
   navTimeoutMs: number;
   userAgent?: string;
+  rateLimitMs: number;
 };
 
 export type ResourceKind = "html" | "pdf" | "other" | "unknown";

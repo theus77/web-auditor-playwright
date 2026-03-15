@@ -2,12 +2,17 @@ import { chromium, type Page, type ConsoleMessage } from "playwright";
 import type { CrawlOptions, ResourceContext, EngineState } from "./types.js";
 import { PluginRegistry } from "./PluginRegistry.js";
 import { normalizeUrl, parseMime, kindFromMime, isSameOrigin } from "./utils.js";
+import { RateLimiter } from "./RateLimiter.js";
 
 export class CrawlerEngine {
+  private readonly rateLimiter: RateLimiter;
+
   constructor(
     private opts: CrawlOptions,
     private registry: PluginRegistry,
-  ) {}
+  ) {
+    this.rateLimiter = new RateLimiter(this.opts.rateLimitMs);
+  }
 
   async run(): Promise<{ state: EngineState; results: ResourceContext[] }> {
     const start = normalizeUrl(this.opts.startUrl);
@@ -66,6 +71,9 @@ export class CrawlerEngine {
       try {
         await this.registry.runPhase("beforeGoto", ctx);
 
+        // Rate limit global avant toute navigation
+        await this.rateLimiter.wait();
+
         const response = await page.goto(item.url, { waitUntil: "domcontentloaded" });
         ctx.response = response ?? undefined;
         ctx.status = response?.status();
@@ -95,9 +103,17 @@ export class CrawlerEngine {
             } catch {
               continue;
             }
-            if (this.opts.sameOriginOnly && !isSameOrigin(n, start)) continue;
-            if (item.depth + 1 > this.opts.maxDepth) continue;
-            if (state.seen.has(n)) continue;
+
+            if (this.opts.sameOriginOnly && !isSameOrigin(n, start)) {
+              continue;
+            }
+            if (item.depth + 1 > this.opts.maxDepth) {
+              continue;
+            }
+            if (state.seen.has(n)) {
+              continue;
+            }
+
             state.seen.add(n);
             queue.push({ url: n, depth: item.depth + 1 });
           }

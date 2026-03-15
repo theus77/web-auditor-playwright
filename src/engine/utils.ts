@@ -20,3 +20,7 @@ export function kindFromMime(mime?: string) {
 export function isSameOrigin(a: string, b: string): boolean {
   return new URL(a).origin === new URL(b).origin;
 }
+
+export function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
