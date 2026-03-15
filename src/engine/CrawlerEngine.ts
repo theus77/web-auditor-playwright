@@ -3,6 +3,7 @@ import type { CrawlOptions, ResourceContext, EngineState } from "./types.js";
 import { PluginRegistry } from "./PluginRegistry.js";
 import { normalizeUrl, parseMime, kindFromMime, isSameOrigin } from "./utils.js";
 import { RateLimiter } from "./RateLimiter.js";
+import { createInitialReport } from "./report.js";
 
 export class CrawlerEngine {
   private readonly rateLimiter: RateLimiter;
@@ -75,6 +76,12 @@ export class CrawlerEngine {
         links: [],
         engineState: state,
         findings: [],
+        report: createInitialReport({
+          url: item.url,
+          kind: "unknown",
+          status: undefined,
+          mime: undefined,
+        }),
       };
 
       try {
@@ -91,6 +98,17 @@ export class CrawlerEngine {
         const mime = parseMime(response?.headers()["content-type"]);
         ctx.mime = mime;
         ctx.kind = kindFromMime(mime);
+        const finalTargetUrl = ctx.finalUrl ?? ctx.url;
+        const parsed = new URL(finalTargetUrl);
+        ctx.report.url = finalTargetUrl;
+        ctx.report.redirected = ctx.url !== finalTargetUrl;
+        ctx.report.host = parsed.host;
+        ctx.report.base_url = parsed.pathname;
+        ctx.report.timestamp = new Date().toISOString();
+        ctx.report.is_web = ctx.kind === "html";
+        ctx.report.status_code = ctx.status ?? null;
+        ctx.report.message = ctx.response?.statusText() ?? null;
+        ctx.report.mimetype = response?.headers()["content-type"] ?? ctx.mime ?? null;
 
         await this.registry.runPhase("afterGoto", ctx);
 

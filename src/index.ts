@@ -8,6 +8,7 @@ import { CrawlerEngine } from "./engine/CrawlerEngine.js";
 // import { LighthouseEveryNHtmlPlugin } from "./plugins/LighthouseEveryNHtmlPlugin";
 import { StatsCollectorPlugin } from "./plugins/StatsCollectorPlugin.js";
 import { ConsoleStatusPlugin } from "./plugins/ConsoleStatusPlugin.js";
+import { PerUrlJsonReportPlugin } from "./plugins/PerUrlJsonReportPlugin.js";
 
 async function main() {
   const registry = new PluginRegistry()
@@ -16,6 +17,11 @@ async function main() {
       new ConsoleStatusPlugin({
         refreshEveryMs: 2000,
         singleLine: true,
+      }),
+    )
+    .register(
+      new PerUrlJsonReportPlugin({
+        outputDir: process.env.REPORT_OUTPUT_DIR ?? "./reports",
       }),
     );
   // .register(new ConsoleErrorsPlugin())

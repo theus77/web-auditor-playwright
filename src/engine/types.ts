@@ -41,6 +41,8 @@ export type ResourceContext = {
   links: string[]; // liens extraits (si html)
   extractedText?: string; // ex: textract PDF
 
+  report: ResourceReport;
+
   // shared state
   engineState: EngineState;
 
@@ -49,6 +51,41 @@ export type ResourceContext = {
 };
 
 export type FindingData = Record<string, unknown>;
+
+export type ResourceReportLink = {
+  type: string;
+  text: string;
+  url: string;
+  status_code: number | null;
+  message: string | null;
+  mimetype: string | null;
+};
+
+export type ResourceReportPa11yItem = {
+  code: string;
+  type: string;
+  message: string;
+  selector?: string | null;
+  context?: string | null;
+};
+
+export type ResourceReport = {
+  url: string | null;
+  redirected: boolean;
+  host: string | null;
+  base_url: string | null;
+  timestamp: string;
+  is_web: boolean;
+  status_code: number | null;
+  message: string | null;
+  mimetype: string | null;
+  meta_title: string | null;
+  title: string | null;
+  locale: string | null;
+  links: ResourceReportLink[];
+  pa11y: ResourceReportPa11yItem[];
+  data: Record<string, unknown>;
+};
 
 export type EngineState = {
   startedAt: string;
