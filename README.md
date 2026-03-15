@@ -5,7 +5,7 @@
 ```shell
 npm install
 npm run build
-npm start
+START_URL=https://your-site.com npm start
 ```
 
 ## Build & run
