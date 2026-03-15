@@ -1,0 +1,157 @@
+import { chromium, type Page, type ConsoleMessage } from "playwright";
+import type { CrawlOptions, ResourceContext, EngineState } from "./types.js";
+import { PluginRegistry } from "./PluginRegistry.js";
+import { normalizeUrl, parseMime, kindFromMime, isSameOrigin } from "./utils.js";
+
+export class CrawlerEngine {
+  constructor(
+    private opts: CrawlOptions,
+    private registry: PluginRegistry,
+  ) {}
+
+  async run(): Promise<{ state: EngineState; results: ResourceContext[] }> {
+    const start = normalizeUrl(this.opts.startUrl);
+    const origin = new URL(start).origin;
+
+    const state: EngineState = {
+      startedAt: new Date().toISOString(),
+      origin,
+      seen: new Set([start]),
+      htmlVisitedCount: 0,
+      any: {},
+    };
+
+    const queue: { url: string; depth: number }[] = [{ url: start, depth: 0 }];
+    const results: ResourceContext[] = [];
+
+    const browser = await chromium.launch({ headless: true });
+    const context = await browser.newContext({
+      userAgent: this.opts.userAgent,
+    });
+
+    const processOne = async (item: { url: string; depth: number }) => {
+      const page = await context.newPage();
+      page.setDefaultNavigationTimeout(this.opts.navTimeoutMs);
+
+      const consoleLogs: ResourceContext["console"] = [];
+      const pageErrors: string[] = [];
+
+      page.on("console", (msg: ConsoleMessage) => {
+        const type = msg.type();
+        if (["error", "warning"].includes(type)) {
+          const loc = msg.location();
+          consoleLogs.push({
+            type,
+            text: msg.text(),
+            location: loc?.url ? `${loc.url}:${loc.lineNumber}:${loc.columnNumber}` : undefined,
+          });
+        }
+      });
+      page.on("pageerror", (err) => pageErrors.push(err.message));
+
+      // contexte minimal avant navigation
+      const ctx: ResourceContext = {
+        url: item.url,
+        depth: item.depth,
+        kind: "unknown",
+        page,
+        context,
+        console: consoleLogs,
+        pageErrors,
+        links: [],
+        engineState: state,
+        findings: [],
+      };
+
+      try {
+        await this.registry.runPhase("beforeGoto", ctx);
+
+        const response = await page.goto(item.url, { waitUntil: "domcontentloaded" });
+        ctx.response = response ?? undefined;
+        ctx.status = response?.status();
+        ctx.finalUrl = response?.url();
+
+        const mime = parseMime(response?.headers()["content-type"]);
+        ctx.mime = mime;
+        ctx.kind = kindFromMime(mime);
+
+        await this.registry.runPhase("afterGoto", ctx);
+
+        // Extraction brute selon kind
+        if (ctx.kind === "html") {
+          ctx.html = await page.content();
+
+          // liens (utile crawl + deadlinks)
+          const hrefs: string[] = await page.$$eval("a[href]", (as) =>
+            as.map((a) => (a as HTMLAnchorElement).href).filter(Boolean),
+          );
+          ctx.links = hrefs;
+
+          // enqueue
+          for (const h of hrefs) {
+            let n: string;
+            try {
+              n = normalizeUrl(h);
+            } catch {
+              continue;
+            }
+            if (this.opts.sameOriginOnly && !isSameOrigin(n, start)) continue;
+            if (item.depth + 1 > this.opts.maxDepth) continue;
+            if (state.seen.has(n)) continue;
+            state.seen.add(n);
+            queue.push({ url: n, depth: item.depth + 1 });
+          }
+
+          state.htmlVisitedCount += 1;
+        } else if (ctx.kind === "pdf") {
+          // récupérer le buffer PDF
+          // IMPORTANT: response.body() marche si Playwright a la réponse; sinon fallback via fetch page.request
+          const body = response ? await response.body() : undefined;
+          ctx.pdfBuffer = body ? Buffer.from(body) : undefined;
+        }
+
+        await this.registry.runPhase("afterExtract", ctx);
+
+        // plugins de “process”
+        await this.registry.runPhase("afterProcess", ctx);
+
+        // phase périodique (plugins peuvent décider via engineState)
+        await this.registry.runPhase("periodic", ctx);
+      } catch (e: unknown) {
+        let errorMessage = "Unknown error: " + String(e);
+        if (e instanceof Error) {
+          errorMessage = e.message;
+        }
+        ctx.findings.push({
+          plugin: "engine",
+          type: "error",
+          code: "NAVIGATION_FAILED",
+          message: errorMessage,
+          url: ctx.url,
+        });
+      } finally {
+        results.push(ctx);
+        await page.close();
+      }
+    };
+
+    let visited = 0;
+    while (queue.length > 0 && visited < this.opts.maxPages) {
+      const batch: { url: string; depth: number }[] = [];
+      while (
+        batch.length < this.opts.concurrency &&
+        queue.length > 0 &&
+        visited + batch.length < this.opts.maxPages
+      ) {
+        batch.push(queue.shift()!);
+      }
+      await Promise.all(batch.map(processOne));
+      visited += batch.length;
+    }
+
+    await context.close();
+    await browser.close();
+
+    return { state, results };
+  }
+}

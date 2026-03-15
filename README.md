@@ -4,7 +4,7 @@
 
 ```shell
 npm install
-npm runbuild
+npm run build
 npm start
 ```
 
@@ -17,6 +17,7 @@ docker run --rm \
   -e START_URL="https://ton-site.be" \
   -e MAX_PAGES="80" \
   -e MAX_DEPTH="4" \
+  -e CONCURRENCY="2" \
   -e CHECK_EXTERNAL_LINKS="false" \
   elasticms/web-auditor
 ```
