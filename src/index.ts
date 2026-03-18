@@ -55,7 +55,7 @@ async function main() {
         findings: results.flatMap((r) => r.findings),
     };
 
-    console.log(JSON.stringify(report, null, 2));
+    console.log(JSON.stringify(report, null, 4));
 
     // Exemple de fail CI : au moins une erreur
     const hasErrors = report.findings.some((f) => f.type === "error");
