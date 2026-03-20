@@ -1,5 +1,6 @@
 import { PluginRegistry } from "./engine/PluginRegistry.js";
 import { CrawlerEngine } from "./engine/CrawlerEngine.js";
+import { TimeUtils } from "./utils/TimeUtils.js";
 
 // import { ConsoleErrorsPlugin } from "./plugins/ConsoleErrorsPlugin";
 // import { A11yAxePlugin } from "./plugins/A11yAxePlugin";
@@ -47,25 +48,30 @@ async function main() {
     );
 
     const state = await engine.run();
-
-    const pluginSummaries = registry.getSummaries();
-
-    printPluginSummaryTable(pluginSummaries);
-
     const endedAt = new Date();
     const durationMs = endedAt.getTime() - state.startedAt.getTime();
-    const report = {
-        state: {
-            startedAt: state.startedAt.toISOString(),
-            endedAt: endedAt.toISOString(),
-            durationMs: durationMs,
-            origin: state.origin,
-            seenCount: state.seen.size,
-        },
-        plugins: pluginSummaries,
-    };
 
-    console.log(JSON.stringify(report, null, 4));
+    console.log("\n\n=== Audit completed ===\n");
+    console.log("  - Origin     : " + state.origin);
+    console.log("  - Started at : " + state.startedAt.toISOString());
+    console.log("  - Ended at   : " + endedAt.toISOString());
+    console.log("  - Duration   : " + TimeUtils.formatHuman(durationMs));
+    console.log("  - URLs seen  : " + state.seen.size);
+
+    const pluginSummaries = registry.getSummaries();
+    printPluginSummaryTable(pluginSummaries);
+    // const report = {
+    //     state: {
+    //         startedAt: state.startedAt.toISOString(),
+    //         endedAt: endedAt.toISOString(),
+    //         durationMs: durationMs,
+    //         origin: state.origin,
+    //         seenCount: state.seen.size,
+    //     },
+    //     plugins: pluginSummaries,
+    // };
+    //
+    // console.log(JSON.stringify(report, null, 4));
 
     const hasErrors = pluginSummaries.reduce((sum, p) => sum + p.errors, 0) > 0;
     process.exit(hasErrors ? 2 : 0);
