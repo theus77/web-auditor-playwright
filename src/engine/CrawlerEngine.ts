@@ -163,8 +163,8 @@ export class CrawlerEngine {
                 state.activeWorkers -= 1;
 
                 await page.close();
-                await this.registry.runPhase("finally", ctx);
                 ctx.report.findings = ctx.findings;
+                await this.registry.runPhase("finally", ctx);
             }
         };
 
