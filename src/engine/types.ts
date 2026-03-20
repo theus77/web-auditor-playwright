@@ -100,10 +100,9 @@ export type CrawlerControl = {
 };
 
 export type EngineState = {
-    startedAt: string;
+    startedAt: Date;
     origin: string;
     seen: Set<string>;
-    htmlVisitedCount: number;
     downloadVisitedCount: number;
     processedCount: number;
     successCount: number;
@@ -132,15 +131,18 @@ export type PluginPhase =
     | "error"
     | "finally";
 
+export type PluginSummary = {
+    plugin: string;
+    auditedUrls: number;
+    warnings: number;
+    errors: number;
+};
+
 export interface IPlugin {
     name: string;
-
-    /** Est-ce que le plugin s'applique à cette ressource ? (mime/url/etc.) */
     applies(ctx: ResourceContext): boolean;
-
-    /** Phases supportées */
     phases: PluginPhase[];
-
-    /** Hook appelé sur les phases indiquées */
     run(phase: PluginPhase, ctx: ResourceContext): Promise<void>;
+    includeInSummary?(): boolean;
+    getSummary?(): PluginSummary | null;
 }

@@ -3,16 +3,19 @@ import path from "node:path";
 import crypto from "node:crypto";
 
 import type { IPlugin, PluginPhase, ResourceContext } from "../engine/types.js";
+import { BasePlugin } from "../engine/BasePlugin.js";
 
 type PerUrlJsonReportPluginOptions = {
     outputDir: string;
 };
 
-export class PerUrlJsonReportPlugin implements IPlugin {
+export class PerUrlJsonReportPlugin extends BasePlugin implements IPlugin {
     name = "per-url-json-report";
     phases: PluginPhase[] = ["finally"];
 
-    constructor(private readonly options: PerUrlJsonReportPluginOptions) {}
+    constructor(private readonly options: PerUrlJsonReportPluginOptions) {
+        super();
+    }
 
     applies(): boolean {
         return true;
@@ -38,5 +41,8 @@ export class PerUrlJsonReportPlugin implements IPlugin {
         const hash = crypto.createHash("sha1").update(url).digest("hex").slice(0, 10);
 
         return `${slugBase}_${hash}.json`;
+    }
+    includeInSummary(): boolean {
+        return false;
     }
 }

@@ -1,5 +1,6 @@
 import type { IPlugin, PluginPhase, ResourceContext } from "../engine/types.js";
 import { STATS_COLLECTOR_KEY, type StatsCollectorState } from "../engine/stats.js";
+import { BasePlugin } from "../engine/BasePlugin.js";
 
 type ConsoleStatusPluginOptions = {
     refreshEveryMs?: number;
@@ -10,7 +11,7 @@ type ConsoleStatusState = {
     lastPrintAt: number;
 };
 
-export class ConsoleStatusPlugin implements IPlugin {
+export class ConsoleStatusPlugin extends BasePlugin implements IPlugin {
     name = "console-status";
     phases: PluginPhase[] = ["periodic"];
 
@@ -18,6 +19,7 @@ export class ConsoleStatusPlugin implements IPlugin {
     private readonly singleLine: boolean;
 
     constructor(options: ConsoleStatusPluginOptions = {}) {
+        super();
         this.refreshEveryMs = options.refreshEveryMs ?? 2000;
         this.singleLine = options.singleLine ?? true;
     }
@@ -80,5 +82,8 @@ export class ConsoleStatusPlugin implements IPlugin {
             minute: "2-digit",
             second: "2-digit",
         });
+    }
+    includeInSummary(): boolean {
+        return false;
     }
 }

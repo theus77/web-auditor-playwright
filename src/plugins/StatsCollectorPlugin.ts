@@ -6,18 +6,20 @@ import {
     type StatsCollectorState,
     type StatsSample,
 } from "../engine/stats.js";
+import { BasePlugin } from "../engine/BasePlugin.js";
 
 type StatsCollectorPluginOptions = {
     rollingWindowSize?: number;
 };
 
-export class StatsCollectorPlugin implements IPlugin {
+export class StatsCollectorPlugin extends BasePlugin implements IPlugin {
     name = "stats-collector";
     phases: PluginPhase[] = ["periodic"];
 
     private readonly rollingWindowSize: number;
 
     constructor(options: StatsCollectorPluginOptions = {}) {
+        super();
         this.rollingWindowSize = options.rollingWindowSize ?? 10;
     }
 
@@ -125,5 +127,8 @@ export class StatsCollectorPlugin implements IPlugin {
         const deltaMinutes = Math.max((last.timestamp - first.timestamp) / 60000, 1 / 60000);
 
         return deltaPages / deltaMinutes;
+    }
+    includeInSummary(): boolean {
+        return false;
     }
 }

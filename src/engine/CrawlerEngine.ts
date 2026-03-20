@@ -26,10 +26,9 @@ export class CrawlerEngine {
         const origin = new URL(start).origin;
 
         const state: EngineState = {
-            startedAt: new Date().toISOString(),
+            startedAt: new Date(),
             origin,
             seen: new Set(),
-            htmlVisitedCount: 0,
             downloadVisitedCount: 0,
             processedCount: 0,
             successCount: 0,

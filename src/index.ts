@@ -10,6 +10,7 @@ import { StatsCollectorPlugin } from "./plugins/StatsCollectorPlugin.js";
 import { ConsoleStatusPlugin } from "./plugins/ConsoleStatusPlugin.js";
 import { PerUrlJsonReportPlugin } from "./plugins/PerUrlJsonReportPlugin.js";
 import { ProcessHtmlPlugin } from "./plugins/ProcessHtmlPlugin.js";
+import { printPluginSummaryTable } from "./engine/summaryPrinter.js";
 
 async function main() {
     const registry = new PluginRegistry()
@@ -47,20 +48,27 @@ async function main() {
 
     const { state, results } = await engine.run();
 
+    const pluginSummaries = registry.getSummaries();
+
+    printPluginSummaryTable(pluginSummaries);
+
+    const endedAt = new Date();
+    const durationMs = endedAt.getTime() - state.startedAt.getTime();
     const report = {
         state: {
-            startedAt: state.startedAt,
+            startedAt: state.startedAt.toISOString(),
+            endedAt: endedAt.toISOString(),
+            durationMs: durationMs,
             origin: state.origin,
-            htmlVisitedCount: state.htmlVisitedCount,
             downloadedVisitedCount: state.downloadVisitedCount,
             seenCount: state.seen.size,
         },
         findings: results.flatMap((r) => r.findings),
+        plugins: pluginSummaries,
     };
 
     console.log(JSON.stringify(report, null, 4));
 
-    // Exemple de fail CI : au moins une erreur
     const hasErrors = report.findings.some((f) => f.type === "error");
     process.exit(hasErrors ? 2 : 0);
 }

@@ -1,16 +1,18 @@
 import { IPlugin, PluginPhase, ResourceContext, ResourceReportLink } from "../engine/types.js";
+import { BasePlugin } from "../engine/BasePlugin.js";
 
 type ProcessHtmlPluginOptions = {
     maxLinksPerPage?: number;
 };
 
-export class ProcessHtmlPlugin implements IPlugin {
+export class ProcessHtmlPlugin extends BasePlugin implements IPlugin {
     name = "process-html";
     phases: PluginPhase[] = ["process", "error"];
 
     private readonly maxLinksPerPage: number | null;
 
     constructor(options: ProcessHtmlPluginOptions = {}) {
+        super();
         this.maxLinksPerPage = options.maxLinksPerPage ?? null;
     }
 
@@ -81,5 +83,6 @@ export class ProcessHtmlPlugin implements IPlugin {
                 source: this.name,
             });
         }
+        this.registerUrl();
     }
 }
