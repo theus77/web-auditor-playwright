@@ -71,6 +71,19 @@ export class ProcessHtmlPlugin extends BasePlugin implements IPlugin {
         const titleAnalyzer = new TitleAnalyzer();
         const titleAnalysis = titleAnalyzer.analyze(extracted.title);
 
+        const mailOrTelLinkCount = extracted.links.filter(
+            (l) => l.url.startsWith("mailto:") || l.url.startsWith("tel:"),
+        ).length;
+        if (mailOrTelLinkCount > 0) {
+            ctx.findings.push({
+                plugin: this.name,
+                type: "info",
+                code: "MAIL_OR_TEL_LINK",
+                message: `Contains ${mailOrTelLinkCount} mailto or tel links.`,
+            });
+            this.registerInfo();
+        }
+
         for (const issue of titleAnalysis.issues) {
             ctx.findings.push({
                 plugin: this.name,
