@@ -21,6 +21,7 @@ export class ProcessHtmlPlugin implements IPlugin {
     async run(_phase: PluginPhase, ctx: ResourceContext): Promise<void> {
         const extracted = await ctx.page.evaluate(() => {
             const title = document.querySelector("title")?.textContent ?? null;
+            const lang = document.querySelector("html")?.attributes.getNamedItem("lang")?.value ?? null;
 
             const h1s = Array.from(document.querySelectorAll("h1"))
                 .map((el) => el.textContent?.trim() ?? "")
@@ -34,11 +35,13 @@ export class ProcessHtmlPlugin implements IPlugin {
                 title,
                 h1s,
                 hrefs,
+                lang,
             };
         });
 
         ctx.report.is_web = true;
         ctx.report.meta_title = extracted.title;
+        ctx.report.locale = extracted.lang;
         ctx.report.title = extracted.h1s.length > 0 ? extracted.h1s[0] : null;
         ctx.links = extracted.hrefs;
 
