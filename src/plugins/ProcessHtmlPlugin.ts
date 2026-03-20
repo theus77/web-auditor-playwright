@@ -1,5 +1,6 @@
 import { IPlugin, PluginPhase, ResourceContext, ResourceReportLink } from "../engine/types.js";
 import { BasePlugin } from "../engine/BasePlugin.js";
+import { TitleAnalyzer, TitleIssueSeverity } from "../utils/TitleAnalyzer.js";
 
 type ProcessHtmlPluginOptions = {
     maxLinksPerPage?: number;
@@ -67,6 +68,24 @@ export class ProcessHtmlPlugin extends BasePlugin implements IPlugin {
                 lang,
             };
         });
+        const titleAnalyzer = new TitleAnalyzer();
+        const titleAnalysis = titleAnalyzer.analyze(extracted.title);
+
+        for (const issue of titleAnalysis.issues) {
+            ctx.findings.push({
+                plugin: this.name,
+                type: issue.severity,
+                code: issue.code,
+                message: issue.message,
+                data: {
+                    title: titleAnalysis.normalized,
+                    length: titleAnalysis.length,
+                    brand: titleAnalysis.brand,
+                    mainTitle: titleAnalysis.mainTitle,
+                },
+            });
+            this.registerByType(issue.severity);
+        }
 
         ctx.report.is_web = true;
         ctx.report.meta_title = extracted.title;
@@ -84,5 +103,19 @@ export class ProcessHtmlPlugin extends BasePlugin implements IPlugin {
             });
         }
         this.registerUrl();
+    }
+
+    private registerByType(severity: TitleIssueSeverity) {
+        switch (severity) {
+            case "info":
+                this.registerInfo();
+                break;
+            case "warning":
+                this.registerWarning();
+                break;
+            case "error":
+                this.registerError();
+                break;
+        }
     }
 }
