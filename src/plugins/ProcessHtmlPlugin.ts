@@ -6,7 +6,7 @@ type ProcessHtmlPluginOptions = {
 
 export class ProcessHtmlPlugin implements IPlugin {
     name = "process-html";
-    phases: PluginPhase[] = ["process"];
+    phases: PluginPhase[] = ["process", "error"];
 
     private readonly maxLinksPerPage: number | null;
 
@@ -19,13 +19,30 @@ export class ProcessHtmlPlugin implements IPlugin {
     }
 
     async run(_phase: PluginPhase, ctx: ResourceContext): Promise<void> {
-        ctx.report.is_web = true;
-        const hrefs: string[] = await ctx.page.$$eval("a[href]", (as) =>
-            as.map((a) => (a as HTMLAnchorElement).href).filter(Boolean),
-        );
-        ctx.links = hrefs;
+        const extracted = await ctx.page.evaluate(() => {
+            const title = document.querySelector("title")?.textContent ?? null;
 
-        for (const href of hrefs) {
+            const h1s = Array.from(document.querySelectorAll("h1"))
+                .map((el) => el.textContent?.trim() ?? "")
+                .filter((t) => t.length > 0);
+
+            const hrefs = Array.from(document.querySelectorAll("a[href]"))
+                .map((a) => (a as HTMLAnchorElement).href)
+                .filter(Boolean);
+
+            return {
+                title,
+                h1s,
+                hrefs,
+            };
+        });
+
+        ctx.report.is_web = true;
+        ctx.report.meta_title = extracted.title;
+        ctx.report.title = extracted.h1s.length > 0 ? extracted.h1s[0] : null;
+        ctx.links = extracted.hrefs;
+
+        for (const href of extracted.hrefs) {
             ctx.crawler.enqueueUrl({
                 url: href,
                 source: this.name,
