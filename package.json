@@ -13,7 +13,10 @@
     },
     "dependencies": {
         "@axe-core/playwright": "^4.9.0",
-        "playwright": "^1.49.0"
+        "mammoth": "^1.12.0",
+        "pdf-parse": "^2.4.5",
+        "playwright": "^1.49.0",
+        "textract": "^0.20.0"
     },
     "devDependencies": {
         "@types/node": "^25.3.5",
