@@ -12,6 +12,7 @@ import { CleanDownloadedPlugin } from "./plugins/CleanDownloadedPlugin.js";
 import { TextDownloadedExtractorPlugin } from "./plugins/TextDownloadedExtractorPlugin.js";
 import { PdfDownloadedExtractorPlugin } from "./plugins/PdfDownloadedExtractorPlugin.js";
 import { DocxDownloadedExtractorPlugin } from "./plugins/DocxDownloadedExtractorPlugin.js";
+import { TextractDownloadedExtractorPlugin } from "./plugins/TextractDownloadedExtractorPlugin.js";
 import { printPluginSummaryTable } from "./engine/summaryPrinter.js";
 
 async function main() {
@@ -63,6 +64,15 @@ async function main() {
         )
         .register(
             new DocxDownloadedExtractorPlugin({
+                maxExtractedChars: Number(process.env.DOWNLOAD_MAX_EXTRACTED_CHARS ?? 200000),
+                maxLinks: Number(process.env.DOWNLOAD_MAX_LINKS ?? 500),
+                maxFileSizeBytes: Number(
+                    process.env.DOWNLOAD_MAX_TEXT_READ_BYTES ?? 5 * 1024 * 1024,
+                ),
+            }),
+        )
+        .register(
+            new TextractDownloadedExtractorPlugin({
                 maxExtractedChars: Number(process.env.DOWNLOAD_MAX_EXTRACTED_CHARS ?? 200000),
                 maxLinks: Number(process.env.DOWNLOAD_MAX_LINKS ?? 500),
                 maxFileSizeBytes: Number(
