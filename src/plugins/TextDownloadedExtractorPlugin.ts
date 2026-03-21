@@ -3,6 +3,7 @@ import fsp from "node:fs/promises";
 import { BasePlugin } from "../engine/BasePlugin.js";
 import { IPlugin, PluginPhase, ResourceContext, ResourceReportLink } from "../engine/types.js";
 import { ErrorUtils } from "../utils/ErrorUtils.js";
+import { TextUtils } from "../utils/TextUtils.js";
 
 type TextDownloadedExtractorPluginOptions = {
     maxExtractedChars?: number;
@@ -55,8 +56,9 @@ export class TextDownloadedExtractorPlugin extends BasePlugin implements IPlugin
 
         try {
             const raw = await fsp.readFile(savedPath, "utf8");
-            const text = this.normalizeText(
+            const text = TextUtils.normalizeText(
                 mime === "text/html" || mime === "image/svg+xml" ? this.htmlToText(raw) : raw,
+                this.maxExtractedChars,
             );
 
             const links = this.extractLinks(text, this.maxLinks);
@@ -86,13 +88,6 @@ export class TextDownloadedExtractorPlugin extends BasePlugin implements IPlugin
             "image/svg+xml",
             "text/markdown",
         ].includes(mime);
-    }
-
-    private normalizeText(text: string): string {
-        const normalized = text.replace(/\s+/g, " ").trim();
-        return normalized.length > this.maxExtractedChars
-            ? normalized.slice(0, this.maxExtractedChars)
-            : normalized;
     }
 
     private extractLinks(text: string, limit: number): ResourceReportLink[] {
