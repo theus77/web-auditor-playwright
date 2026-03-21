@@ -61,15 +61,7 @@ export class ProcessHtmlPlugin extends BasePlugin implements IPlugin {
             }
 
             const clone = document.body.cloneNode(true) as HTMLElement;
-            const selectors = [
-                "script",
-                "style",
-                "noscript",
-                "header",
-                "footer",
-                "nav",
-                "aside",
-            ];
+            const selectors = ["script", "style", "noscript", "header", "footer", "nav", "aside"];
             selectors.forEach((selector) => {
                 clone.querySelectorAll(selector).forEach((el) => el.remove());
             });
@@ -114,6 +106,17 @@ export class ProcessHtmlPlugin extends BasePlugin implements IPlugin {
                 },
             });
             this.registerByType(issue.severity);
+        }
+
+        const wordCount = extracted.content.split(/\s+/).length;
+        if (wordCount < 100) {
+            ctx.findings.push({
+                plugin: this.name,
+                type: "warning",
+                code: "LOW_CONTENT",
+                message: `Low content page (${wordCount} words).`,
+            });
+            this.registerWarning();
         }
 
         ctx.report.is_web = true;
