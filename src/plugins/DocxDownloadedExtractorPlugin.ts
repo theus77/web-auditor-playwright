@@ -66,7 +66,7 @@ export class DocxDownloadedExtractorPlugin extends BasePlugin implements IPlugin
             const mammoth = require("mammoth") as MammothModule;
             const result = await mammoth.extractRawText({ path: savedPath });
             const text = TextUtils.normalizeText(result.value ?? "", this.maxExtractedChars);
-            const links = this.extractLinks(text, this.maxLinks);
+            const links = TextUtils.extractLinks(text, this.maxLinks, "docx-text");
             for (const link of links) {
                 ctx.crawler.enqueueUrl({
                     url: link.url,
@@ -86,15 +86,6 @@ export class DocxDownloadedExtractorPlugin extends BasePlugin implements IPlugin
         }
 
         this.register(ctx);
-    }
-
-    private extractLinks(text: string, limit: number): ResourceReportLink[] {
-        const found = text.match(/\bhttps?:\/\/[^\s<>"')\]]+/gi) ?? [];
-        return [...new Set(found)].slice(0, limit).map((url) => ({
-            type: "docx-text",
-            url,
-            text: url,
-        }));
     }
 
     private mergeLinks(

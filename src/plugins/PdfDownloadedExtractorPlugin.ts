@@ -73,7 +73,7 @@ export class PdfDownloadedExtractorPlugin extends BasePlugin implements IPlugin 
                     typeof result === "string" ? result : (result.text ?? ""),
                     this.maxExtractedChars,
                 );
-                const links = this.extractLinks(text, this.maxLinks);
+                const links = TextUtils.extractLinks(text, this.maxLinks, "pdf-text");
                 for (const link of links) {
                     ctx.crawler.enqueueUrl({
                         url: link.url,
@@ -96,15 +96,6 @@ export class PdfDownloadedExtractorPlugin extends BasePlugin implements IPlugin 
         }
 
         this.register(ctx);
-    }
-
-    private extractLinks(text: string, limit: number): ResourceReportLink[] {
-        const found = text.match(/\bhttps?:\/\/[^\s<>"')\]]+/gi) ?? [];
-        return [...new Set(found)].slice(0, limit).map((url) => ({
-            type: "pdf-text",
-            url,
-            text: url,
-        }));
     }
 
     private mergeLinks(

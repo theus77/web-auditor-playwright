@@ -61,7 +61,7 @@ export class TextDownloadedExtractorPlugin extends BasePlugin implements IPlugin
                 this.maxExtractedChars,
             );
 
-            const links = this.extractLinks(text, this.maxLinks);
+            const links = TextUtils.extractLinks(text, this.maxLinks, "extracted");
 
             ctx.report.content = text;
             ctx.report.message = `Text extracted from ${mime}.`;
@@ -88,15 +88,6 @@ export class TextDownloadedExtractorPlugin extends BasePlugin implements IPlugin
             "image/svg+xml",
             "text/markdown",
         ].includes(mime);
-    }
-
-    private extractLinks(text: string, limit: number): ResourceReportLink[] {
-        const found = text.match(/\bhttps?:\/\/[^\s<>"')\]]+/gi) ?? [];
-        return [...new Set(found)].slice(0, limit).map((url) => ({
-            type: "extracted",
-            url,
-            text: url,
-        }));
     }
 
     private mergeLinks(
