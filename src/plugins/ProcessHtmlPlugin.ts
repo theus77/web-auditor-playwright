@@ -60,12 +60,28 @@ export class ProcessHtmlPlugin extends BasePlugin implements IPlugin {
                 });
             }
 
+            const clone = document.body.cloneNode(true) as HTMLElement;
+            const selectors = [
+                "script",
+                "style",
+                "noscript",
+                "header",
+                "footer",
+                "nav",
+                "aside",
+            ];
+            selectors.forEach((selector) => {
+                clone.querySelectorAll(selector).forEach((el) => el.remove());
+            });
+            const content = (clone.innerText || "").replace(/\s+/g, " ").trim();
+
             return {
                 title,
                 h1s,
                 description,
                 links,
                 lang,
+                content,
             };
         });
         const titleAnalyzer = new TitleAnalyzer();
@@ -104,6 +120,7 @@ export class ProcessHtmlPlugin extends BasePlugin implements IPlugin {
         ctx.report.meta_title = extracted.title;
         ctx.report.locale = extracted.lang;
         ctx.report.description = extracted.description;
+        ctx.report.content = extracted.content;
         ctx.report.title = extracted.h1s.length > 0 ? extracted.h1s[0] : null;
         ctx.report.links = this.maxLinksPerPage
             ? extracted.links.slice(0, this.maxLinksPerPage)
