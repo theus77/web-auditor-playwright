@@ -39,18 +39,6 @@ export class ProcessHtmlPlugin extends BasePlugin implements IPlugin {
             }
 
             for (const issue of titleAnalysis.issues) {
-                ctx.findings.push({
-                    plugin: this.name,
-                    type: issue.severity,
-                    code: issue.code,
-                    message: issue.message,
-                    data: {
-                        title: titleAnalysis.normalized,
-                        length: titleAnalysis.length,
-                        brand: titleAnalysis.brand,
-                        mainTitle: titleAnalysis.mainTitle,
-                    },
-                });
                 this.registerFinding(issue.severity, ctx, issue.code, issue.message, {
                     title: titleAnalysis.normalized,
                     length: titleAnalysis.length,
