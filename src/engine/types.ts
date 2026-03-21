@@ -121,6 +121,7 @@ export type EngineState = {
     activeWorkers: number;
     maxPages: number;
     any: Record<string, unknown>;
+    findings: Finding[];
 };
 
 export type FindingSeverity = "info" | "warning" | "error";

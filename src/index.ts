@@ -86,6 +86,7 @@ async function main() {
                 seenCount: state.seen.size,
             },
             plugins: pluginSummaries,
+            findings: state.findings,
         };
         console.log(JSON.stringify(report, null, 4));
     }

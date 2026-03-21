@@ -38,6 +38,7 @@ export class CrawlerEngine {
             activeWorkers: 0,
             maxPages: this.opts.maxPages,
             any: {},
+            findings: [],
         };
 
         const queue: { url: string; depth: number }[] = [];
@@ -203,6 +204,7 @@ export class CrawlerEngine {
 
                 await page.close();
                 ctx.report.findings = ctx.findings;
+                state.findings.push(...ctx.findings);
                 await this.registry.runPhase("finally", ctx);
             }
         };
