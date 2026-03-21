@@ -22,6 +22,85 @@ export class ProcessHtmlPlugin extends BasePlugin implements IPlugin {
     }
 
     async run(_phase: PluginPhase, ctx: ResourceContext): Promise<void> {
+        try {
+            const extracted = await this.extractFromDom(ctx);
+            const titleAnalyzer = new TitleAnalyzer();
+            const titleAnalysis = titleAnalyzer.analyze(extracted.title);
+
+            const mailOrTelLinkCount = extracted.links.filter(
+                (l) => l.url.startsWith("mailto:") || l.url.startsWith("tel:"),
+            ).length;
+            if (mailOrTelLinkCount > 0) {
+                ctx.findings.push({
+                    plugin: this.name,
+                    type: "info",
+                    code: "MAIL_OR_TEL_LINK",
+                    message: `Contains ${mailOrTelLinkCount} mailto or tel links.`,
+                });
+                this.registerInfo();
+            }
+
+            for (const issue of titleAnalysis.issues) {
+                ctx.findings.push({
+                    plugin: this.name,
+                    type: issue.severity,
+                    code: issue.code,
+                    message: issue.message,
+                    data: {
+                        title: titleAnalysis.normalized,
+                        length: titleAnalysis.length,
+                        brand: titleAnalysis.brand,
+                        mainTitle: titleAnalysis.mainTitle,
+                    },
+                });
+                this.registerByType(issue.severity);
+            }
+
+            const wordCount = extracted.content.split(/\s+/).length;
+            if (wordCount < 100) {
+                ctx.findings.push({
+                    plugin: this.name,
+                    type: "warning",
+                    code: "LOW_CONTENT",
+                    message: `Low content page (${wordCount} words).`,
+                });
+                this.registerWarning();
+            }
+
+            ctx.report.is_web = true;
+            ctx.report.meta_title = extracted.title;
+            ctx.report.locale = extracted.lang;
+            ctx.report.description = extracted.description;
+            ctx.report.content = extracted.content;
+            ctx.report.title = extracted.h1s.length > 0 ? extracted.h1s[0] : null;
+            ctx.report.links = this.maxLinksPerPage
+                ? extracted.links.slice(0, this.maxLinksPerPage)
+                : extracted.links;
+
+            for (const link of extracted.links) {
+                ctx.crawler.enqueueUrl({
+                    url: link.url,
+                    source: this.name,
+                });
+            }
+            this.registerUrl();
+        } catch (e: unknown) {
+            let errorMessage = "Unknown error: " + String(e);
+            if (e instanceof Error) {
+                errorMessage = e.message;
+            }
+            ctx.findings.push({
+                plugin: this.name,
+                type: "error",
+                code: "PROCESS_HTML_ERROR",
+                message: `It's impossible to process the URL ${ctx.url}: ${errorMessage}.`,
+            });
+            this.registerError();
+            return;
+        }
+    }
+
+    private async extractFromDom(ctx: ResourceContext) {
         const extracted = await ctx.page.evaluate(() => {
             const title = document.querySelector("title")?.textContent ?? null;
             const lang =
@@ -51,7 +130,25 @@ export class ProcessHtmlPlugin extends BasePlugin implements IPlugin {
                     url = el.src;
                 }
 
-                if (!url) continue;
+                if (typeof url !== "string") {
+                    ctx.findings.push({
+                        plugin: this.name,
+                        type: "warning",
+                        code: "WRONG_URL",
+                        message: `Tag ${el.tagName.toLowerCase()} with unexpected link attribute (href or src).`,
+                    });
+                    this.registerWarning();
+                    continue;
+                } else if (url === "") {
+                    ctx.findings.push({
+                        plugin: this.name,
+                        type: "warning",
+                        code: "EMPTY_URL",
+                        message: `Tag ${el.tagName.toLowerCase()} with an empty link attribute (href or src).`,
+                    });
+                    this.registerWarning();
+                    continue;
+                }
 
                 links.push({
                     type: el.tagName.toLowerCase(),
@@ -76,65 +173,6 @@ export class ProcessHtmlPlugin extends BasePlugin implements IPlugin {
                 content,
             };
         });
-        const titleAnalyzer = new TitleAnalyzer();
-        const titleAnalysis = titleAnalyzer.analyze(extracted.title);
-
-        const mailOrTelLinkCount = extracted.links.filter(
-            (l) => l.url.startsWith("mailto:") || l.url.startsWith("tel:"),
-        ).length;
-        if (mailOrTelLinkCount > 0) {
-            ctx.findings.push({
-                plugin: this.name,
-                type: "info",
-                code: "MAIL_OR_TEL_LINK",
-                message: `Contains ${mailOrTelLinkCount} mailto or tel links.`,
-            });
-            this.registerInfo();
-        }
-
-        for (const issue of titleAnalysis.issues) {
-            ctx.findings.push({
-                plugin: this.name,
-                type: issue.severity,
-                code: issue.code,
-                message: issue.message,
-                data: {
-                    title: titleAnalysis.normalized,
-                    length: titleAnalysis.length,
-                    brand: titleAnalysis.brand,
-                    mainTitle: titleAnalysis.mainTitle,
-                },
-            });
-            this.registerByType(issue.severity);
-        }
-
-        const wordCount = extracted.content.split(/\s+/).length;
-        if (wordCount < 100) {
-            ctx.findings.push({
-                plugin: this.name,
-                type: "warning",
-                code: "LOW_CONTENT",
-                message: `Low content page (${wordCount} words).`,
-            });
-            this.registerWarning();
-        }
-
-        ctx.report.is_web = true;
-        ctx.report.meta_title = extracted.title;
-        ctx.report.locale = extracted.lang;
-        ctx.report.description = extracted.description;
-        ctx.report.content = extracted.content;
-        ctx.report.title = extracted.h1s.length > 0 ? extracted.h1s[0] : null;
-        ctx.report.links = this.maxLinksPerPage
-            ? extracted.links.slice(0, this.maxLinksPerPage)
-            : extracted.links;
-
-        for (const link of extracted.links) {
-            ctx.crawler.enqueueUrl({
-                url: link.url,
-                source: this.name,
-            });
-        }
-        this.registerUrl();
+        return extracted;
     }
 }
