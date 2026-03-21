@@ -13,7 +13,7 @@ type TextDownloadedExtractorPluginOptions = {
 
 export class TextDownloadedExtractorPlugin extends BasePlugin implements IPlugin {
     name = "text-downloaded-extractor";
-    phases: PluginPhase[] = ["download"];
+    phases: PluginPhase[] = ["after-download"];
 
     private readonly maxExtractedChars: number;
     private readonly maxLinks: number;

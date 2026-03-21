@@ -173,6 +173,7 @@ export class CrawlerEngine {
                 if (download) {
                     ctx.download = download;
                     await this.registry.runPhase("download", ctx);
+                    await this.registry.runPhase("after-download", ctx);
                 } else {
                     ctx.findings.push({
                         plugin: "engine",
