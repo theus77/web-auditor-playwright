@@ -58,7 +58,6 @@ export class DocxDownloadedExtractorPlugin extends BasePlugin implements IPlugin
                 "DOCX_EXTRACTION_SKIPPED_TOO_LARGE",
                 `DOCX extraction skipped because the file is larger than ${this.maxFileSizeBytes} bytes.`,
             );
-            this.register(ctx);
             return;
         }
 

@@ -7,7 +7,7 @@ import {
 } from "./types.js";
 
 export abstract class BasePlugin {
-    protected auditedUrls = 0;
+    protected treatedUrls = 0;
     protected infos = 0;
     protected warnings = 0;
     protected errors = 0;
@@ -17,10 +17,14 @@ export abstract class BasePlugin {
         return true;
     }
 
+    isAuditPlugin(): boolean {
+        return true;
+    }
+
     getSummary(): PluginSummary {
         return {
             plugin: (this as unknown as { name: string }).name,
-            auditedUrls: this.auditedUrls,
+            treatedUrls: this.treatedUrls,
             infos: this.infos,
             warnings: this.warnings,
             errors: this.errors,
@@ -28,8 +32,8 @@ export abstract class BasePlugin {
     }
 
     protected register(ctx: ResourceContext): void {
-        ctx.audited = true;
-        this.auditedUrls += 1;
+        ctx.audited ||= this.isAuditPlugin();
+        this.treatedUrls += 1;
     }
 
     protected registerInfo(ctx: ResourceContext, code: string, message: string): void {

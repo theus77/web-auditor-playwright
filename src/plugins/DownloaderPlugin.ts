@@ -218,4 +218,8 @@ export class DownloaderPlugin extends BasePlugin implements IPlugin {
         const buffer = await fsp.readFile(filePath);
         return crypto.createHash("sha256").update(buffer).digest("hex");
     }
+
+    isAuditPlugin(): boolean {
+        return false;
+    }
 }

@@ -168,7 +168,7 @@ export type PluginPhase =
 
 export type PluginSummary = {
     plugin: string;
-    auditedUrls: number;
+    treatedUrls: number;
     infos: number;
     warnings: number;
     errors: number;

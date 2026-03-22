@@ -12,6 +12,10 @@ export class CleanDownloadedPlugin extends BasePlugin implements IPlugin {
         return !!ctx.downloaded?.savedPath && ctx.downloaded.cleanup !== false;
     }
 
+    isAuditPlugin(): boolean {
+        return false;
+    }
+
     async run(_phase: PluginPhase, ctx: ResourceContext): Promise<void> {
         const savedPath = ctx.downloaded?.savedPath;
         if (!savedPath) {

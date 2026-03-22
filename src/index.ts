@@ -101,7 +101,7 @@ async function main() {
     const pluginSummaries = registry.getSummaries();
     pluginSummaries.push({
         plugin: "engine",
-        auditedUrls: state.seen.size,
+        treatedUrls: state.seen.size,
         infos: state.infoCount,
         errors: state.errorCount,
         warnings: state.warningCount,

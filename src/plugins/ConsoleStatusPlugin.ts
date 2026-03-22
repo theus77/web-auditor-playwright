@@ -86,4 +86,8 @@ export class ConsoleStatusPlugin extends BasePlugin implements IPlugin {
     includeInSummary(): boolean {
         return false;
     }
+
+    isAuditPlugin(): boolean {
+        return false;
+    }
 }

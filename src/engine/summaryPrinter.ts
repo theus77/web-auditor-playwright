@@ -10,9 +10,9 @@ export function printPluginSummaryTable(summaries: PluginSummary[]): void {
         return;
     }
 
-    const headers = ["Plugin", "Urls", "Info", "Warnings", "Errors"];
+    const headers = ["Plugin", "Treated", "Info", "Warnings", "Errors"];
 
-    const rows = summaries.map((s) => [s.plugin, s.auditedUrls, s.infos, s.warnings, s.errors]);
+    const rows = summaries.map((s) => [s.plugin, s.treatedUrls, s.infos, s.warnings, s.errors]);
 
     const colWidths = headers.map((header, i) =>
         Math.max(header.length, ...rows.map((row) => String(row[i]).length)),

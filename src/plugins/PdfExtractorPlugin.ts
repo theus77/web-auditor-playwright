@@ -60,7 +60,6 @@ export class PdfExtractorPlugin extends BasePlugin implements IPlugin {
                 "PDF_EXTRACTION_SKIPPED_TOO_LARGE",
                 `PDF extraction skipped because the file is larger than ${this.maxFileSizeBytes} bytes.`,
             );
-            this.register(ctx);
             return;
         }
 

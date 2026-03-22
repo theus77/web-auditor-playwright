@@ -131,4 +131,8 @@ export class StatsCollectorPlugin extends BasePlugin implements IPlugin {
     includeInSummary(): boolean {
         return false;
     }
+
+    isAuditPlugin(): boolean {
+        return false;
+    }
 }

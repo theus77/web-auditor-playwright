@@ -45,4 +45,8 @@ export class PerUrlJsonReportPlugin extends BasePlugin implements IPlugin {
     includeInSummary(): boolean {
         return false;
     }
+
+    isAuditPlugin(): boolean {
+        return false;
+    }
 }

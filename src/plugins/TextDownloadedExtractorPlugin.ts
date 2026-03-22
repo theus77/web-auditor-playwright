@@ -50,7 +50,6 @@ export class TextDownloadedExtractorPlugin extends BasePlugin implements IPlugin
                 "TEXT_EXTRACTION_SKIPPED_TOO_LARGE",
                 `Text extraction skipped because the file is larger than ${this.maxFileSizeBytes} bytes.`,
             );
-            this.register(ctx);
             return;
         }
 
@@ -66,6 +65,7 @@ export class TextDownloadedExtractorPlugin extends BasePlugin implements IPlugin
             ctx.report.content = text;
             ctx.report.message = `Text extracted from ${mime}.`;
             ctx.report.links = this.mergeLinks(ctx.report.links ?? [], links);
+            this.register(ctx);
         } catch (error) {
             this.registerWarning(
                 ctx,
@@ -73,8 +73,6 @@ export class TextDownloadedExtractorPlugin extends BasePlugin implements IPlugin
                 ErrorUtils.errorMessage("Failed to read textual downloaded resource", error),
             );
         }
-
-        this.register(ctx);
     }
 
     private isSupportedMime(mime: string): boolean {
