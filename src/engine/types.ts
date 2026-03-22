@@ -48,6 +48,7 @@ export type ResourceContext = {
     extractedText?: string; // ex: textract PDF
 
     audited?: boolean;
+    auditors?: string[];
     report: ResourceReport;
     crawler: CrawlerControl;
     engineState: EngineState;
@@ -107,6 +108,7 @@ export type ResourceReport = {
     findings: Finding[];
     metas?: MetaItem[];
     size: number | null;
+    auditors?: string[];
 };
 
 export type EnqueueRequest = {

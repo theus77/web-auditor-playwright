@@ -32,7 +32,7 @@ export abstract class BasePlugin {
     }
 
     protected register(ctx: ResourceContext): void {
-        ctx.audited ||= this.isAuditPlugin();
+        this.addAuditor(ctx);
         this.treatedUrls += 1;
     }
 
@@ -70,7 +70,7 @@ export abstract class BasePlugin {
         message: string,
         data?: FindingData,
     ) {
-        ctx.audited ||= this.isAuditPlugin();
+        this.addAuditor(ctx);
         ctx.findings.push({
             plugin: this.name,
             type: severity,
@@ -106,5 +106,14 @@ export abstract class BasePlugin {
         }
 
         return [...map.values()];
+    }
+
+    private addAuditor(ctx: ResourceContext) {
+        ctx.audited ||= this.isAuditPlugin();
+        ctx.auditors ??= [];
+        if (ctx.auditors.includes(this.name)) {
+            return;
+        }
+        ctx.auditors.push(this.name);
     }
 }

@@ -220,6 +220,7 @@ export class CrawlerEngine {
 
                 await page.close();
                 ctx.report.findings = ctx.findings;
+                ctx.report.auditors = ctx.auditors;
                 state.findings.push(...ctx.findings);
                 state.inventory.push({
                     depth: ctx.depth,
