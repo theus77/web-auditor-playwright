@@ -127,14 +127,23 @@ async function main() {
     });
     const endedAt = new Date();
     const durationMs = endedAt.getTime() - state.startedAt.getTime();
+    const firstSecurityHeaderScore =
+        state.findings.filter((f) => f.code === "SECURITY_HEADERS_SCORE").at(0) ?? 0;
+    let securityGrade: string = "N/A";
+    let securityScore: string = "N/A";
+    if (firstSecurityHeaderScore) {
+        securityGrade = String(firstSecurityHeaderScore.data?.grade ?? "N/A");
+        securityScore = String(firstSecurityHeaderScore.data?.score ?? "N/A");
+    }
 
     if (outputFormat === "table" || outputFormat === "both") {
         console.log("\n\n=== Audit completed ===\n");
-        console.log("  - Origin     : " + state.origin);
-        console.log("  - Started at : " + state.startedAt.toISOString());
-        console.log("  - Ended at   : " + endedAt.toISOString());
-        console.log("  - Duration   : " + TimeUtils.formatHuman(durationMs));
-        console.log("  - URLs seen  : " + state.seen.size);
+        console.log("  - Origin         : " + state.origin);
+        console.log("  - Started at     : " + state.startedAt.toISOString());
+        console.log("  - Ended at       : " + endedAt.toISOString());
+        console.log("  - Duration       : " + TimeUtils.formatHuman(durationMs));
+        console.log("  - URLs seen      : " + state.seen.size);
+        console.log(`  - Security grade : ${securityGrade} (${securityScore})%`);
         printPluginSummaryTable(pluginSummaries);
     }
 
@@ -146,6 +155,8 @@ async function main() {
                 durationMs: durationMs,
                 origin: state.origin,
                 seenCount: state.seen.size,
+                securityGrade: securityGrade,
+                securityScore: securityScore,
             },
             plugins: pluginSummaries,
             findings: state.findings,
