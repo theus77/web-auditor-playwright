@@ -36,16 +36,16 @@ export abstract class BasePlugin {
         this.treatedUrls += 1;
     }
 
-    protected registerInfo(ctx: ResourceContext, code: string, message: string): void {
-        this.registerFinding("info", ctx, code, message);
+    protected registerInfo(ctx: ResourceContext, code: string, message: string, data?: FindingData): void {
+        this.registerFinding("info", ctx, code, message, data);
     }
 
-    protected registerWarning(ctx: ResourceContext, code: string, message: string): void {
-        this.registerFinding("warning", ctx, code, message);
+    protected registerWarning(ctx: ResourceContext, code: string, message: string, data?: FindingData): void {
+        this.registerFinding("warning", ctx, code, message, data);
     }
 
-    protected registerError(ctx: ResourceContext, code: string, message: string): void {
-        this.registerFinding("error", ctx, code, message);
+    protected registerError(ctx: ResourceContext, code: string, message: string, data?: FindingData): void {
+        this.registerFinding("error", ctx, code, message, data);
     }
 
     protected registerFinding(
