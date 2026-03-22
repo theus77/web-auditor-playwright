@@ -90,22 +90,6 @@ export class TextDownloadedExtractorPlugin extends BasePlugin implements IPlugin
         ].includes(mime);
     }
 
-    private mergeLinks(
-        existing: ResourceReportLink[],
-        incoming: ResourceReportLink[],
-    ): ResourceReportLink[] {
-        const map = new Map<string, ResourceReportLink>();
-
-        for (const link of existing) {
-            map.set(`${link.type}|${link.url}`, link);
-        }
-        for (const link of incoming) {
-            map.set(`${link.type}|${link.url}`, link);
-        }
-
-        return [...map.values()];
-    }
-
     private htmlToText(html: string): string {
         return html
             .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, " ")

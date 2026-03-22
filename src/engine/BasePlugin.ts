@@ -65,4 +65,20 @@ export abstract class BasePlugin {
                 break;
         }
     }
+
+    protected mergeLinks(
+        existing: ResourceReportLink[],
+        incoming: ResourceReportLink[],
+    ): ResourceReportLink[] {
+        const map = new Map<string, ResourceReportLink>();
+
+        for (const link of existing) {
+            map.set(`${link.type}|${link.url}`, link);
+        }
+        for (const link of incoming) {
+            map.set(`${link.type}|${link.url}`, link);
+        }
+
+        return [...map.values()];
+    }
 }
