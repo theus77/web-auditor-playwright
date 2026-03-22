@@ -17,6 +17,7 @@ import { TextractExtractorPlugin } from "./plugins/TextractExtractorPlugin.js";
 import { SecurityHeadersPlugin } from "./plugins/SecurityHeadersPlugin.js";
 import { LanguageDetectionPlugin } from "./plugins/LanguageDetectionPlugin.js";
 import { StandardUrlsAuditPlugin } from "./plugins/StandardUrlsAuditPlugin.js";
+import { ConsolePlugin } from "./plugins/ConsolePlugin.js";
 
 async function main() {
     const registry = new PluginRegistry()
@@ -30,6 +31,20 @@ async function main() {
         .register(
             new SaveReportAsJsonPlugin({
                 outputDir: process.env.REPORT_OUTPUT_DIR ?? "./reports",
+            }),
+        )
+        .register(
+            new ConsolePlugin({
+                auditOnlyStartUrl: process.env.CONSOLE_AUDIT_ONLY_START_URL === "true",
+                includeWarnings: (process.env.CONSOLE_INCLUDE_WARNINGS ?? "true") === "true",
+                ignoredTextPatterns: (
+                    process.env.CONSOLE_IGNORED_PATTERNS ??
+                    "favicon\\.ico,chrome-extension:\\/\\/,Failed to load resource: .*"
+                )
+                    .split(",")
+                    .map((p) => p.trim())
+                    .filter((p) => p.length > 0)
+                    .map((p) => new RegExp(p, "i")),
             }),
         )
         .register(new ProcessHtmlPlugin())
