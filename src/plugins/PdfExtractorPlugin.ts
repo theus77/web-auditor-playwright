@@ -28,7 +28,7 @@ type TextToken = {
 };
 
 export class PdfExtractorPlugin extends BasePlugin implements IPlugin {
-    name = "pdf-metadata-and-links-extractor";
+    name = "pdf-extractor";
     phases: PluginPhase[] = ["after-download"];
 
     private readonly maxExtractedChars: number;
