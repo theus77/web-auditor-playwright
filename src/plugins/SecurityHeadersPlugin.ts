@@ -12,11 +12,18 @@ type ParsedCookie = {
     sameSite: string | null;
 };
 
+type ScoreItem = {
+    id: string;
+    passed: boolean;
+    weight: number;
+};
+
 export class SecurityHeadersPlugin extends BasePlugin implements IPlugin {
     name = "security-headers";
     phases: PluginPhase[] = ["afterGoto", "error"];
 
     private readonly auditOnlyStartUrl: boolean;
+    private readonly scoreItems: ScoreItem[] = [];
 
     constructor(options: SecurityHeadersPluginOptions = {}) {
         super();
@@ -31,6 +38,8 @@ export class SecurityHeadersPlugin extends BasePlugin implements IPlugin {
         if (this.auditOnlyStartUrl && ctx.depth !== 0) {
             return;
         }
+
+        this.scoreItems.length = 0;
 
         if (phase === "error") {
             this.registerWarning(
@@ -53,6 +62,7 @@ export class SecurityHeadersPlugin extends BasePlugin implements IPlugin {
         this.auditPermissionsPolicy(ctx, headers);
         this.auditCrossOriginHeaders(ctx, headers);
         this.auditCookies(ctx, isHttps);
+        this.registerScoreSummary(ctx);
 
         this.register(ctx);
     }
@@ -65,6 +75,7 @@ export class SecurityHeadersPlugin extends BasePlugin implements IPlugin {
         const value = headers["strict-transport-security"];
 
         if (!isHttps) {
+            this.addScore("hsts", true, 10);
             this.registerInfo(
                 ctx,
                 "HSTS_NOT_APPLICABLE",
@@ -74,6 +85,7 @@ export class SecurityHeadersPlugin extends BasePlugin implements IPlugin {
         }
 
         if (!value) {
+            this.addScore("hsts", false, 10);
             this.registerError(
                 ctx,
                 "MISSING_HSTS",
@@ -85,6 +97,7 @@ export class SecurityHeadersPlugin extends BasePlugin implements IPlugin {
         const maxAge = this.extractDirectiveNumber(value, "max-age");
 
         if (maxAge === null) {
+            this.addScore("hsts", false, 10);
             this.registerWarning(
                 ctx,
                 "INVALID_HSTS",
@@ -95,6 +108,7 @@ export class SecurityHeadersPlugin extends BasePlugin implements IPlugin {
         }
 
         if (maxAge < 31536000) {
+            this.addScore("hsts", false, 10);
             this.registerWarning(
                 ctx,
                 "WEAK_HSTS_MAX_AGE",
@@ -103,6 +117,8 @@ export class SecurityHeadersPlugin extends BasePlugin implements IPlugin {
             );
             return;
         }
+
+        this.addScore("hsts", true, 10);
     }
 
     private auditContentSecurityPolicy(
@@ -113,10 +129,13 @@ export class SecurityHeadersPlugin extends BasePlugin implements IPlugin {
         const reportOnly = headers["content-security-policy-report-only"];
 
         if (enforced) {
-            if (
-                !this.hasDirective(enforced, "default-src") &&
-                !this.hasDirective(enforced, "script-src")
-            ) {
+            const hasCoreDirectives =
+                this.hasDirective(enforced, "default-src") ||
+                this.hasDirective(enforced, "script-src");
+
+            this.addScore("csp", hasCoreDirectives, 20);
+
+            if (!hasCoreDirectives) {
                 this.registerWarning(
                     ctx,
                     "WEAK_CSP",
@@ -129,6 +148,7 @@ export class SecurityHeadersPlugin extends BasePlugin implements IPlugin {
         }
 
         if (reportOnly) {
+            this.addScore("csp", false, 20);
             this.registerWarning(
                 ctx,
                 "CSP_REPORT_ONLY_ONLY",
@@ -138,16 +158,17 @@ export class SecurityHeadersPlugin extends BasePlugin implements IPlugin {
             return;
         }
 
+        this.addScore("csp", false, 20);
         this.registerError(ctx, "MISSING_CSP", "Missing Content-Security-Policy header.");
     }
 
     private auditFrameProtection(ctx: ResourceContext, headers: Record<string, string>): void {
         const xfo = headers["x-frame-options"];
         const csp = headers["content-security-policy"];
-
         const hasFrameAncestors = csp ? this.hasDirective(csp, "frame-ancestors") : false;
 
         if (!xfo && !hasFrameAncestors) {
+            this.addScore("clickjacking", false, 10);
             this.registerWarning(
                 ctx,
                 "MISSING_CLICKJACKING_PROTECTION",
@@ -155,6 +176,8 @@ export class SecurityHeadersPlugin extends BasePlugin implements IPlugin {
             );
             return;
         }
+
+        let passed = false;
 
         if (xfo) {
             const normalized = xfo.trim().toUpperCase();
@@ -165,14 +188,23 @@ export class SecurityHeadersPlugin extends BasePlugin implements IPlugin {
                     "X-Frame-Options header is present but has an uncommon value.",
                     { value: xfo },
                 );
+            } else {
+                passed = true;
             }
         }
+
+        if (hasFrameAncestors) {
+            passed = true;
+        }
+
+        this.addScore("clickjacking", passed, 10);
     }
 
     private auditContentTypeOptions(ctx: ResourceContext, headers: Record<string, string>): void {
         const value = headers["x-content-type-options"];
 
         if (!value) {
+            this.addScore("nosniff", false, 10);
             this.registerWarning(
                 ctx,
                 "MISSING_X_CONTENT_TYPE_OPTIONS",
@@ -182,6 +214,7 @@ export class SecurityHeadersPlugin extends BasePlugin implements IPlugin {
         }
 
         if (value.trim().toLowerCase() !== "nosniff") {
+            this.addScore("nosniff", false, 10);
             this.registerWarning(
                 ctx,
                 "INVALID_X_CONTENT_TYPE_OPTIONS",
@@ -190,12 +223,15 @@ export class SecurityHeadersPlugin extends BasePlugin implements IPlugin {
             );
             return;
         }
+
+        this.addScore("nosniff", true, 10);
     }
 
     private auditReferrerPolicy(ctx: ResourceContext, headers: Record<string, string>): void {
         const value = headers["referrer-policy"];
 
         if (!value) {
+            this.addScore("referrer-policy", false, 8);
             this.registerWarning(ctx, "MISSING_REFERRER_POLICY", "Missing Referrer-Policy header.");
             return;
         }
@@ -214,6 +250,7 @@ export class SecurityHeadersPlugin extends BasePlugin implements IPlugin {
                 "unsafe-url",
             ].includes(normalized)
         ) {
+            this.addScore("referrer-policy", false, 8);
             this.registerWarning(
                 ctx,
                 "INVALID_REFERRER_POLICY",
@@ -224,6 +261,7 @@ export class SecurityHeadersPlugin extends BasePlugin implements IPlugin {
         }
 
         if (normalized === "unsafe-url") {
+            this.addScore("referrer-policy", false, 8);
             this.registerWarning(
                 ctx,
                 "WEAK_REFERRER_POLICY",
@@ -232,12 +270,15 @@ export class SecurityHeadersPlugin extends BasePlugin implements IPlugin {
             );
             return;
         }
+
+        this.addScore("referrer-policy", true, 8);
     }
 
     private auditPermissionsPolicy(ctx: ResourceContext, headers: Record<string, string>): void {
         const value = headers["permissions-policy"];
 
         if (!value) {
+            this.addScore("permissions-policy", false, 6);
             this.registerInfo(
                 ctx,
                 "MISSING_PERMISSIONS_POLICY",
@@ -245,11 +286,19 @@ export class SecurityHeadersPlugin extends BasePlugin implements IPlugin {
             );
             return;
         }
+
+        this.addScore("permissions-policy", true, 6);
     }
 
     private auditCrossOriginHeaders(ctx: ResourceContext, headers: Record<string, string>): void {
         const coop = headers["cross-origin-opener-policy"];
         const corp = headers["cross-origin-resource-policy"];
+
+        const coopValid = typeof coop === "string" && coop.trim().length > 0;
+        const corpValid = typeof corp === "string" && corp.trim().length > 0;
+
+        this.addScore("coop", coopValid, 4);
+        this.addScore("corp", corpValid, 4);
 
         if (!coop) {
             this.registerInfo(
@@ -272,6 +321,7 @@ export class SecurityHeadersPlugin extends BasePlugin implements IPlugin {
         const setCookieHeaders = this.getSetCookieHeaders(ctx);
 
         if (setCookieHeaders.length === 0) {
+            this.addScore("cookies", true, 18);
             return;
         }
 
@@ -279,12 +329,16 @@ export class SecurityHeadersPlugin extends BasePlugin implements IPlugin {
             .map((value) => this.parseSetCookie(value))
             .filter((cookie): cookie is ParsedCookie => cookie !== null);
 
+        let allCookiesDefensive = true;
+
         for (const cookie of parsedCookies) {
             const hasSecure = cookie.attributes.has("secure");
             const hasHttpOnly = cookie.attributes.has("httponly");
             const sameSite = cookie.sameSite;
+            const sameSiteValid = sameSite !== null && ["lax", "strict", "none"].includes(sameSite);
 
             if (isHttps && !hasSecure) {
+                allCookiesDefensive = false;
                 this.registerWarning(
                     ctx,
                     "COOKIE_MISSING_SECURE",
@@ -294,6 +348,7 @@ export class SecurityHeadersPlugin extends BasePlugin implements IPlugin {
             }
 
             if (!hasHttpOnly) {
+                allCookiesDefensive = false;
                 this.registerWarning(
                     ctx,
                     "COOKIE_MISSING_HTTPONLY",
@@ -303,13 +358,15 @@ export class SecurityHeadersPlugin extends BasePlugin implements IPlugin {
             }
 
             if (!sameSite) {
+                allCookiesDefensive = false;
                 this.registerWarning(
                     ctx,
                     "COOKIE_MISSING_SAMESITE",
                     `Cookie "${cookie.name}" is missing the SameSite attribute.`,
                     { cookie: cookie.raw },
                 );
-            } else if (!["lax", "strict", "none"].includes(sameSite)) {
+            } else if (!sameSiteValid) {
+                allCookiesDefensive = false;
                 this.registerWarning(
                     ctx,
                     "COOKIE_INVALID_SAMESITE",
@@ -317,6 +374,7 @@ export class SecurityHeadersPlugin extends BasePlugin implements IPlugin {
                     { cookie: cookie.raw, sameSite },
                 );
             } else if (sameSite === "none" && !hasSecure) {
+                allCookiesDefensive = false;
                 this.registerWarning(
                     ctx,
                     "COOKIE_SAMESITE_NONE_WITHOUT_SECURE",
@@ -325,6 +383,51 @@ export class SecurityHeadersPlugin extends BasePlugin implements IPlugin {
                 );
             }
         }
+
+        this.addScore("cookies", allCookiesDefensive, 18);
+    }
+
+    private registerScoreSummary(ctx: ResourceContext): void {
+        const maxScore = this.scoreItems.reduce((sum, item) => sum + item.weight, 0);
+        const obtainedScore = this.scoreItems
+            .filter((item) => item.passed)
+            .reduce((sum, item) => sum + item.weight, 0);
+
+        const score = maxScore > 0 ? Math.round((obtainedScore / maxScore) * 100) : 0;
+        const grade = this.gradeFromScore(score);
+
+        const details = this.scoreItems.map((item) => ({
+            id: item.id,
+            passed: item.passed,
+            weight: item.weight,
+        }));
+
+        const summary = `HTTP security score for the start URL: ${score}/100 (${grade}).`;
+
+        if (score >= 90) {
+            this.registerInfo(ctx, "SECURITY_HEADERS_SCORE", summary, { score, grade, details });
+            return;
+        }
+
+        if (score >= 70) {
+            this.registerWarning(ctx, "SECURITY_HEADERS_SCORE", summary, { score, grade, details });
+            return;
+        }
+
+        this.registerError(ctx, "SECURITY_HEADERS_SCORE", summary, { score, grade, details });
+    }
+
+    private gradeFromScore(score: number): string {
+        if (score >= 90) return "A";
+        if (score >= 80) return "B";
+        if (score >= 70) return "C";
+        if (score >= 60) return "D";
+        if (score >= 50) return "E";
+        return "F";
+    }
+
+    private addScore(id: string, passed: boolean, weight: number): void {
+        this.scoreItems.push({ id, passed, weight });
     }
 
     private getSetCookieHeaders(ctx: ResourceContext): string[] {
