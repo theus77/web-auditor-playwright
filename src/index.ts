@@ -13,16 +13,11 @@ import { TextExtractorPlugin } from "./plugins/TextExtractorPlugin.js";
 import { PdfExtractorPlugin } from "./plugins/PdfExtractorPlugin.js";
 import { DocxExtractorPlugin } from "./plugins/DocxExtractorPlugin.js";
 import { TextractExtractorPlugin } from "./plugins/TextractExtractorPlugin.js";
+import { LanguageDetectionPlugin } from "./plugins/LanguageDetectionPlugin.js";
 import { printPluginSummaryTable } from "./engine/summaryPrinter.js";
 
 async function main() {
     const registry = new PluginRegistry()
-        .register(
-            new DownloaderPlugin({
-                outputDir: process.env.DOWNLOAD_OUTPUT_DIR ?? "./reports/downloads",
-                keepFiles: process.env.DOWNLOAD_KEEP_FILES === "true",
-            }),
-        )
         .register(new StatsCollectorPlugin({ rollingWindowSize: 12 }))
         .register(
             new ConsoleStatusPlugin({
@@ -42,6 +37,12 @@ async function main() {
                     .split(",")
                     .map((tag) => tag.trim())
                     .filter(Boolean),
+            }),
+        )
+        .register(
+            new DownloaderPlugin({
+                outputDir: process.env.DOWNLOAD_OUTPUT_DIR ?? "./reports/downloads",
+                keepFiles: process.env.DOWNLOAD_KEEP_FILES === "true",
             }),
         )
         .register(
@@ -70,6 +71,13 @@ async function main() {
                 maxFileSizeBytes: Number(
                     process.env.DOWNLOAD_MAX_TEXT_READ_BYTES ?? 5 * 1024 * 1024,
                 ),
+            }),
+        )
+        .register(
+            new LanguageDetectionPlugin({
+                minLength: Number(process.env.LANGUAGE_DETECTION_MIN_LENGTH ?? 100),
+                maxSampleLength: Number(process.env.LANGUAGE_DETECTION_MAX_SAMPLE_LENGTH ?? 5000),
+                overwriteExistingLocale: process.env.LANGUAGE_DETECTION_OVERWRITE === "true",
             }),
         )
         .register(new CleanDownloadedPlugin());

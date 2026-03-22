@@ -191,6 +191,7 @@ export class CrawlerEngine {
                     await this.registry.runPhase("error", ctx);
                 }
             } finally {
+                await this.registry.runPhase("before-finally", ctx);
                 if (ctx.findings.some((f) => f.type === "info")) {
                     state.infoCount += 1;
                 }
