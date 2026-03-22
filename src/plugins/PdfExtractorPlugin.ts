@@ -4,7 +4,7 @@ import { IPlugin, PluginPhase, ResourceContext, ResourceReportLink } from "../en
 import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
 import { ErrorUtils } from "../utils/ErrorUtils.js";
 import { TextUtils } from "../utils/TextUtils.js";
-import { PDFDocumentProxy, TextItem } from "pdfjs-dist/types/src/display/api.js";
+import { PDFDocumentProxy } from "pdfjs-dist/types/src/display/api.js";
 
 type PdfExtractorPluginOptions = {
     maxExtractedChars?: number;
@@ -428,14 +428,5 @@ export class PdfExtractorPlugin extends BasePlugin implements IPlugin {
         const property = record[propertyName];
 
         return typeof property === "number" ? property : null;
-    }
-
-    private textItemToString(item: unknown): string {
-        if (!item || typeof item !== "object") {
-            return "";
-        }
-
-        const maybeTextItem = item as Partial<TextItem>;
-        return typeof maybeTextItem.str === "string" ? maybeTextItem.str : "";
     }
 }
