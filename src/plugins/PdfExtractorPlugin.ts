@@ -111,12 +111,26 @@ export class PdfExtractorPlugin extends BasePlugin implements IPlugin {
 
         const info = this.asRecord(metadata.info);
         const xmp = this.getXmpMetadata(metadata.metadata);
+        ctx.report.metas ??= [];
 
         const contentDispositionFilename = this.getOptionalStringProperty(
             metadata,
             "contentDispositionFilename",
         );
+        if (contentDispositionFilename) {
+            ctx.report.metas.push({
+                key: "content_disposition_filename",
+                value: contentDispositionFilename,
+            });
+        }
+
         const contentLength = this.getOptionalNumberProperty(metadata, "contentLength");
+        if (contentLength) {
+            ctx.report.metas.push({
+                key: "content_length",
+                value: `${contentLength}`,
+            });
+        }
 
         const title = TextUtils.firstNonEmptyString(
             TextUtils.asString(info["Title"]),
@@ -139,47 +153,53 @@ export class PdfExtractorPlugin extends BasePlugin implements IPlugin {
             TextUtils.asString(xmp["dc:creator"]),
             TextUtils.asString(xmp["creator"]),
         );
+        if (author) {
+            ctx.report.metas.push({
+                key: "author",
+                value: author,
+            });
+        }
 
         const keywords = TextUtils.firstNonEmptyString(
             TextUtils.asString(info["Keywords"]),
             TextUtils.asString(xmp["pdf:keywords"]),
             TextUtils.asString(xmp["keywords"]),
         );
+        if (keywords) {
+            ctx.report.metas.push({
+                key: "keywords",
+                value: keywords,
+            });
+        }
 
         const creator = TextUtils.firstNonEmptyString(
             TextUtils.asString(info["Creator"]),
             TextUtils.asString(xmp["xmp:creatortool"]),
             TextUtils.asString(xmp["creatorTool"]),
         );
+        if (creator) {
+            ctx.report.metas.push({
+                key: "creator",
+                value: creator,
+            });
+        }
 
         const producer = TextUtils.firstNonEmptyString(
             TextUtils.asString(info["Producer"]),
             TextUtils.asString(xmp["pdf:producer"]),
             TextUtils.asString(xmp["producer"]),
         );
+        if (producer) {
+            ctx.report.metas.push({
+                key: "producer",
+                value: producer,
+            });
+        }
 
         ctx.report.title = title ?? ctx.report.title ?? null;
         ctx.report.meta_title = title ?? ctx.report.meta_title ?? null;
         ctx.report.description = description ?? ctx.report.description ?? null;
-
-        const metaParts: string[] = [];
-        if (author) metaParts.push(`author=${author}`);
-        if (keywords) metaParts.push(`keywords=${keywords}`);
-        if (creator) metaParts.push(`creator=${creator}`);
-        if (producer) metaParts.push(`producer=${producer}`);
-        if (contentDispositionFilename) {
-            metaParts.push(`contentDispositionFilename=${contentDispositionFilename}`);
-        }
-        if (typeof contentLength === "number") {
-            metaParts.push(`contentLength=${contentLength}`);
-        }
-
-        if (metaParts.length > 0) {
-            ctx.report.message = [ctx.report.message, `PDF metadata: ${metaParts.join(", ")}.`]
-                .filter(Boolean)
-                .join(" ");
-        }
-        console.log(metaParts);
+        ctx.report.message = "Text, and metas, extracted from PDF.";
     }
 
     private async extractText(pdf: PDFDocumentProxy): Promise<string> {
@@ -339,12 +359,6 @@ export class PdfExtractorPlugin extends BasePlugin implements IPlugin {
         }
 
         ctx.report.links = this.mergeLinks(ctx.report.links ?? [], collected);
-
-        this.registerInfo(
-            ctx,
-            "PDF_LINKS_EXTRACTED",
-            `Extracted ${collected.length} PDF annotation links.`,
-        );
     }
 
     private normalizeHttpUrl(value: string | null): string | null {

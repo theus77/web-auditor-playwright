@@ -68,6 +68,7 @@ export type ResourceReportA11yAxeNode = {
     failure_summary: string | undefined;
     xpath: string[] | undefined;
 };
+
 export type ResourceReportA11yAxeItem = {
     id: string;
     impact: string | null | undefined;
@@ -78,6 +79,11 @@ export type ResourceReportA11yAxeItem = {
     help: string;
     help_url: string;
     nodes: ResourceReportA11yAxeNode[];
+};
+
+export type MetaItem = {
+    key: string;
+    value: string;
 };
 
 export type ResourceReport = {
@@ -98,6 +104,7 @@ export type ResourceReport = {
     links: ResourceReportLink[];
     a11y_axe?: ResourceReportA11yAxeItem[];
     findings: Finding[];
+    metas?: MetaItem[];
     size: number | null;
 };
 
