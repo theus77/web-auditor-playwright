@@ -7,6 +7,8 @@ type TlsCertificatePluginOptions = {
     auditOnlyStartUrl?: boolean;
     warnIfExpiresInDays?: number;
     timeoutMs?: number;
+    minAcceptedTlsVersion?: "TLSv1.2" | "TLSv1.3";
+    minScoreForError?: number;
 };
 
 type TlsCertInfo = {
@@ -31,6 +33,19 @@ type TlsCertInfo = {
     fingerprint256: string | null;
     selfSigned: boolean;
     chainDepth: number;
+    score: number;
+    grade: string;
+    checks: {
+        https: boolean;
+        authorized: boolean;
+        expired: boolean;
+        expiresSoon: boolean;
+        selfSigned: boolean;
+        hasSan: boolean;
+        tlsVersionOk: boolean;
+        weakCipher: boolean;
+        chainTooShort: boolean;
+    };
 };
 
 export class TlsCertificatePlugin extends BasePlugin implements IPlugin {
@@ -40,12 +55,16 @@ export class TlsCertificatePlugin extends BasePlugin implements IPlugin {
     private readonly auditOnlyStartUrl: boolean;
     private readonly warnIfExpiresInDays: number;
     private readonly timeoutMs: number;
+    private readonly minAcceptedTlsVersion: "TLSv1.2" | "TLSv1.3";
+    private readonly minScoreForError: number;
 
     constructor(options: TlsCertificatePluginOptions = {}) {
         super();
         this.auditOnlyStartUrl = options.auditOnlyStartUrl ?? true;
         this.warnIfExpiresInDays = options.warnIfExpiresInDays ?? 30;
         this.timeoutMs = options.timeoutMs ?? 10000;
+        this.minAcceptedTlsVersion = options.minAcceptedTlsVersion ?? "TLSv1.2";
+        this.minScoreForError = options.minScoreForError ?? 50;
     }
 
     applies(ctx: ResourceContext): boolean {
@@ -109,58 +128,8 @@ export class TlsCertificatePlugin extends BasePlugin implements IPlugin {
                 cert,
             );
 
-            if (!cert.authorized) {
-                this.registerError(
-                    ctx,
-                    "TLS_CERTIFICATE_INVALID",
-                    `The TLS certificate is not trusted by Node/OpenSSL: ${cert.authorizationError ?? "unknown error"}.`,
-                    cert,
-                );
-            }
-
-            if (cert.expired) {
-                this.registerError(
-                    ctx,
-                    "TLS_CERTIFICATE_EXPIRED",
-                    "The TLS certificate is expired.",
-                    cert,
-                );
-            } else if (
-                cert.daysRemaining !== null &&
-                cert.daysRemaining <= this.warnIfExpiresInDays
-            ) {
-                this.registerWarning(
-                    ctx,
-                    "TLS_CERTIFICATE_EXPIRING_SOON",
-                    `The TLS certificate expires in ${cert.daysRemaining} day(s).`,
-                    cert,
-                );
-            }
-
-            if (cert.selfSigned) {
-                this.registerWarning(
-                    ctx,
-                    "TLS_CERTIFICATE_SELF_SIGNED",
-                    "The TLS certificate appears to be self-signed.",
-                    cert,
-                );
-            }
-
-            if (!cert.subjectAltName) {
-                this.registerWarning(
-                    ctx,
-                    "TLS_CERTIFICATE_NO_SAN",
-                    "The TLS certificate does not expose a Subject Alternative Name (SAN).",
-                    cert,
-                );
-            }
-
-            const summary = this.buildSummary(cert);
-            if (cert.authorized && !cert.expired && !cert.selfSigned) {
-                this.registerInfo(ctx, "TLS_CERTIFICATE_SUMMARY", summary, cert);
-            } else {
-                this.registerWarning(ctx, "TLS_CERTIFICATE_SUMMARY", summary, cert);
-            }
+            this.registerScoreFinding(ctx, cert);
+            this.registerCheckFindings(ctx, cert);
         } catch (error) {
             this.registerError(
                 ctx,
@@ -174,6 +143,131 @@ export class TlsCertificatePlugin extends BasePlugin implements IPlugin {
         }
 
         this.register(ctx);
+    }
+
+    private registerScoreFinding(ctx: ResourceContext, cert: TlsCertInfo): void {
+        const summary = this.buildSummary(cert);
+
+        const payload = {
+            score: cert.score,
+            grade: cert.grade,
+            summary,
+            host: cert.host,
+            protocol: cert.protocol,
+            authorized: cert.authorized,
+            selfSigned: cert.selfSigned,
+            expired: cert.expired,
+            daysRemaining: cert.daysRemaining,
+            chainDepth: cert.chainDepth,
+            cipherName: cert.cipherName,
+            checks: cert.checks,
+        };
+
+        if (cert.score < this.minScoreForError || cert.expired || !cert.authorized) {
+            this.registerError(
+                ctx,
+                "TLS_CERTIFICATE_SCORE",
+                `TLS certificate score: ${cert.grade} (${cert.score}/100). ${summary}`,
+                payload,
+            );
+            return;
+        }
+
+        if (
+            cert.selfSigned ||
+            cert.checks.expiresSoon ||
+            !cert.checks.tlsVersionOk ||
+            cert.checks.weakCipher ||
+            cert.checks.chainTooShort ||
+            !cert.checks.hasSan
+        ) {
+            this.registerWarning(
+                ctx,
+                "TLS_CERTIFICATE_SCORE",
+                `TLS certificate score: ${cert.grade} (${cert.score}/100). ${summary}`,
+                payload,
+            );
+            return;
+        }
+
+        this.registerInfo(
+            ctx,
+            "TLS_CERTIFICATE_SCORE",
+            `TLS certificate score: ${cert.grade} (${cert.score}/100). ${summary}`,
+            payload,
+        );
+    }
+
+    private registerCheckFindings(ctx: ResourceContext, cert: TlsCertInfo): void {
+        if (!cert.authorized) {
+            this.registerError(
+                ctx,
+                "TLS_CERTIFICATE_INVALID",
+                `The TLS certificate is not trusted by Node/OpenSSL: ${cert.authorizationError ?? "unknown error"}.`,
+                cert,
+            );
+        }
+
+        if (cert.expired) {
+            this.registerError(
+                ctx,
+                "TLS_CERTIFICATE_EXPIRED",
+                "The TLS certificate is expired.",
+                cert,
+            );
+        } else if (cert.checks.expiresSoon && cert.daysRemaining !== null) {
+            this.registerWarning(
+                ctx,
+                "TLS_CERTIFICATE_EXPIRING_SOON",
+                `The TLS certificate expires in ${cert.daysRemaining} day(s).`,
+                cert,
+            );
+        }
+
+        if (cert.selfSigned) {
+            this.registerWarning(
+                ctx,
+                "TLS_CERTIFICATE_SELF_SIGNED",
+                "The TLS certificate appears to be self-signed.",
+                cert,
+            );
+        }
+
+        if (!cert.checks.hasSan) {
+            this.registerWarning(
+                ctx,
+                "TLS_CERTIFICATE_NO_SAN",
+                "The TLS certificate does not expose a Subject Alternative Name (SAN).",
+                cert,
+            );
+        }
+
+        if (!cert.checks.tlsVersionOk) {
+            this.registerWarning(
+                ctx,
+                "TLS_CERTIFICATE_OLD_TLS_VERSION",
+                `The negotiated TLS version (${cert.protocol ?? "unknown"}) is below the expected minimum (${this.minAcceptedTlsVersion}).`,
+                cert,
+            );
+        }
+
+        if (cert.checks.weakCipher) {
+            this.registerWarning(
+                ctx,
+                "TLS_CERTIFICATE_WEAK_CIPHER",
+                `The negotiated cipher looks weak or legacy: ${cert.cipherName ?? "unknown"}.`,
+                cert,
+            );
+        }
+
+        if (cert.checks.chainTooShort) {
+            this.registerWarning(
+                ctx,
+                "TLS_CERTIFICATE_SHORT_CHAIN",
+                `The certificate chain looks unusually short (depth=${cert.chainDepth}).`,
+                cert,
+            );
+        }
     }
 
     private inspectCertificate(
@@ -218,6 +312,35 @@ export class TlsCertificatePlugin extends BasePlugin implements IPlugin {
                     const expired = daysRemaining !== null ? daysRemaining < 0 : false;
                     const selfSigned = this.isSelfSigned(peer);
                     const chainDepth = this.getChainDepth(peer);
+                    const hasSan =
+                        typeof peer?.subjectaltname === "string" &&
+                        peer.subjectaltname.trim().length > 0;
+
+                    const tlsVersionOk = this.isTlsVersionOk(
+                        typeof protocol === "string" ? protocol : null,
+                    );
+
+                    const weakCipher = this.isWeakCipher(cipher?.name ?? null);
+                    const chainTooShort = chainDepth <= 1;
+                    const expiresSoon =
+                        !expired &&
+                        daysRemaining !== null &&
+                        daysRemaining <= this.warnIfExpiresInDays;
+
+                    const checks = {
+                        https: true,
+                        authorized: socket.authorized,
+                        expired,
+                        expiresSoon,
+                        selfSigned,
+                        hasSan,
+                        tlsVersionOk,
+                        weakCipher,
+                        chainTooShort,
+                    };
+
+                    const score = this.computeScore(checks);
+                    const grade = this.computeGrade(score);
 
                     const result: TlsCertInfo = {
                         host,
@@ -241,6 +364,9 @@ export class TlsCertificatePlugin extends BasePlugin implements IPlugin {
                         fingerprint256: peer?.fingerprint256 ?? null,
                         selfSigned,
                         chainDepth,
+                        score,
+                        grade,
+                        checks,
                     };
 
                     cleanup();
@@ -266,6 +392,52 @@ export class TlsCertificatePlugin extends BasePlugin implements IPlugin {
         });
     }
 
+    private computeScore(checks: TlsCertInfo["checks"]): number {
+        let score = 100;
+
+        if (!checks.authorized) {
+            score -= 45;
+        }
+        if (checks.expired) {
+            score -= 40;
+        }
+        if (checks.expiresSoon) {
+            score -= 10;
+        }
+        if (checks.selfSigned) {
+            score -= 25;
+        }
+        if (!checks.hasSan) {
+            score -= 10;
+        }
+        if (!checks.tlsVersionOk) {
+            score -= 15;
+        }
+        if (checks.weakCipher) {
+            score -= 15;
+        }
+        if (checks.chainTooShort) {
+            score -= 5;
+        }
+
+        return Math.max(0, Math.min(100, score));
+    }
+
+    private computeGrade(score: number): string {
+        if (score >= 97) return "A+";
+        if (score >= 93) return "A";
+        if (score >= 90) return "A-";
+        if (score >= 85) return "B+";
+        if (score >= 80) return "B";
+        if (score >= 75) return "B-";
+        if (score >= 70) return "C+";
+        if (score >= 65) return "C";
+        if (score >= 60) return "C-";
+        if (score >= 55) return "D+";
+        if (score >= 50) return "D";
+        return "F";
+    }
+
     private buildSummary(cert: TlsCertInfo): string {
         const parts = [
             `TLS ${cert.protocol ?? "unknown"}`,
@@ -282,11 +454,52 @@ export class TlsCertificatePlugin extends BasePlugin implements IPlugin {
             parts.push("self-signed");
         }
 
+        if (!cert.checks.hasSan) {
+            parts.push("missing SAN");
+        }
+
+        if (!cert.checks.tlsVersionOk) {
+            parts.push(`old TLS version (min expected: ${this.minAcceptedTlsVersion})`);
+        }
+
         if (cert.cipherName) {
             parts.push(`cipher ${cert.cipherName}`);
         }
 
+        if (cert.checks.weakCipher) {
+            parts.push("weak cipher");
+        }
+
         return `Start URL certificate: ${parts.join(", ")}.`;
+    }
+
+    private isTlsVersionOk(protocol: string | null): boolean {
+        if (!protocol) {
+            return false;
+        }
+
+        const order: Record<string, number> = {
+            SSLv2: 0,
+            SSLv3: 1,
+            TLSv1: 2,
+            "TLSv1.1": 3,
+            "TLSv1.2": 4,
+            "TLSv1.3": 5,
+        };
+
+        return (order[protocol] ?? -1) >= order[this.minAcceptedTlsVersion];
+    }
+
+    private isWeakCipher(cipherName: string | null): boolean {
+        if (!cipherName) {
+            return true;
+        }
+
+        const upper = cipherName.toUpperCase();
+
+        return ["RC4", "3DES", "DES", "MD5", "NULL", "ANON", "EXPORT", "CBC_SHA"].some((token) =>
+            upper.includes(token),
+        );
     }
 
     private toIsoDate(value: unknown): string | null {
@@ -302,6 +515,7 @@ export class TlsCertificatePlugin extends BasePlugin implements IPlugin {
         if (!value || typeof value !== "object" || Array.isArray(value)) {
             return null;
         }
+
         return { ...(value as Record<string, unknown>) };
     }
 

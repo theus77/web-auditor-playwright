@@ -141,6 +141,10 @@ async function main() {
                 auditOnlyStartUrl: (process.env.TLS_CERT_AUDIT_ONLY_START_URL ?? "true") === "true",
                 warnIfExpiresInDays: Number(process.env.TLS_CERT_WARN_IF_EXPIRES_IN_DAYS ?? 30),
                 timeoutMs: Number(process.env.TLS_CERT_TIMEOUT_MS ?? 10000),
+                minAcceptedTlsVersion: (process.env.TLS_CERT_MIN_TLS_VERSION ?? "TLSv1.2") as
+                    | "TLSv1.2"
+                    | "TLSv1.3",
+                minScoreForError: Number(process.env.TLS_CERT_MIN_SCORE_FOR_ERROR ?? 50),
             }),
         )
         .register(
