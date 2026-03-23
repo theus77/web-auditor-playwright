@@ -168,7 +168,7 @@ export class CrawlerEngine {
 
                 await this.registry.runPhase("process", ctx);
 
-                if (!ctx.audited) {
+                if (!ctx.report.is_web) {
                     ctx.downloadTrigger = "inline-resource";
                     await this.registry.runPhase("download", ctx);
                 } else {
