@@ -104,8 +104,6 @@ export type ResourceReport = {
     description: string | null;
     content: string | null;
     links: ResourceReportLink[];
-    a11y_axe?: ResourceReportA11yAxeItem[];
-    findings: Finding[];
     metas?: MetaItem[];
     size: number | null;
     auditors?: string[];

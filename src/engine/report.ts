@@ -19,7 +19,6 @@ export function createInitialReport(
         links: [],
         description: null,
         content: null,
-        findings: [],
         size: null,
     };
 }

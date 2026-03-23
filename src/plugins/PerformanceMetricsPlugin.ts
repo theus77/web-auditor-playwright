@@ -234,8 +234,6 @@ export class PerformanceMetricsPlugin extends BasePlugin implements IPlugin {
             })),
         };
 
-        (ctx.report as Record<string, unknown>).performance = performanceData;
-
         this.registerInfo(
             ctx,
             "PERFORMANCE_MEASURED",
