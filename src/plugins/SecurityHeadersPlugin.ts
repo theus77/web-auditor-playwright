@@ -394,7 +394,9 @@ export class SecurityHeadersPlugin extends BasePlugin implements IPlugin {
             .reduce((sum, item) => sum + item.weight, 0);
 
         const score = maxScore > 0 ? Math.round((obtainedScore / maxScore) * 100) : 0;
+        ctx.engineState.securityHeaderScore = score;
         const grade = this.gradeFromScore(score);
+        ctx.engineState.securityHeaderGrade = grade;
 
         const details = this.scoreItems.map((item) => ({
             id: item.id,
