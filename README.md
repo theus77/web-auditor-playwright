@@ -5,7 +5,7 @@
 ```shell
 npm install
 npm run build
-START_URL=https://mathieu.dekeyzer.net npm start
+START_URL=your-site.com npm start
 ```
 
 ## Build & run
