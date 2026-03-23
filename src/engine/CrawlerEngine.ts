@@ -49,6 +49,7 @@ export class CrawlerEngine {
         const browser = await chromium.launch({ headless: true });
         const context = await browser.newContext({
             userAgent: this.opts.userAgent,
+            ignoreHTTPSErrors: this.opts.ignoreHttpsError,
         });
 
         const processOne = async (item: { url: string; depth: number }) => {

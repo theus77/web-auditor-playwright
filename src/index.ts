@@ -162,6 +162,7 @@ async function main() {
         {
             startUrl: process.env.START_URL || "https://example.org",
             sameOriginOnly: (process.env.SAME_ORIGIN_ONLY ?? "true") === "true",
+            ignoreHttpsError: (process.env.IGNORE_HTTPS_ERRORS ?? "false") === "true",
             maxPages: Number(process.env.MAX_PAGES ?? 50),
             maxDepth: Number(process.env.MAX_DEPTH ?? 3),
             concurrency: Number(process.env.CONCURRENCY ?? 3),

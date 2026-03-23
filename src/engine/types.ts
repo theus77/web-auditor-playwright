@@ -5,6 +5,7 @@ export type Mime = string;
 export type CrawlOptions = {
     startUrl: string;
     sameOriginOnly: boolean;
+    ignoreHttpsError: boolean;
     maxPages: number;
     maxDepth: number;
     concurrency: number;
