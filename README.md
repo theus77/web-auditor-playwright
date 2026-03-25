@@ -23,7 +23,7 @@ Web Auditor is built around a flexible plugin system. Each plugin can:
 - Emit findings categorized (SEO, A11y, Security, etc.)
 - Be enabled/disabled via configuration
 
-## ⚙️ Configuration
+## Configuration
 
 The tool can be configured using [environment variables](#environment-variables):
 - URL allowlists / blocklists (regex)
