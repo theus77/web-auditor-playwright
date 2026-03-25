@@ -8,7 +8,7 @@ Built on top of Playwright, it crawls websites and runs a series of customizable
 
 - Website crawling with configurable depth and scope
 - Plugin-based architecture for extensibility
-- Accessibility audits (axe, pa11y, etc.)
+- Accessibility audits (axe, etc.)
 - SEO checks (titles, meta tags, structure)
 - Performance insights (Lighthouse-like audits)
 - Security checks (SSL, headers, certificates)
@@ -53,10 +53,9 @@ The tool can be configured using [environment variables](#environment-variables)
 - Scheduling and automation
 - Advanced performance audits
 - PDF accessibility checks
-- Graceful shutdown
 - Web server to follow the audit and its report
 - Lighthouse plugin every x pages
-- Generate a HTML repport with
+- Generate a HTML report with
     - Audit summary
     - Performance report
     - European compatible accessibility report in french, dutch, german and english
@@ -110,6 +109,8 @@ Once completed, Playwright is ready to use and the Web Auditor can start crawlin
 ```shell
 START_URL=htttps://your-site.com RATE_LIMIT_MS=400 WEBSITE_ID=your_site npm start
 ```
+
+Press `s` to gracefully stop the audit and generate the report.
 
 ## Build & run a docker image locally
 
