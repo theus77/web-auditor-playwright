@@ -51,13 +51,10 @@ The tool can be configured using [environment variables](#environment-variables)
 - Enhanced reporting (aggregated dashboards)
 - CI/CD integration
 - Scheduling and automation
-- Advanced performance audits
-- PDF accessibility checks
 - Web server to follow the audit and its report
 - Lighthouse plugin every x pages
 - Generate a HTML report with
-    - Audit summary
-    - Performance report
+    - Reports summary
     - European compatible accessibility report in french, dutch, german and english
 - Generate a sitemap.xml report
 - Validate sitemap resources
@@ -73,9 +70,7 @@ The tool can be configured using [environment variables](#environment-variables)
 - Logs external dependencies
 - Cookie plugin
     - lifetime
-- Language mismatched
 - Stats by locales
-- Extends the IPlugin by a conclusion method
 - Tests runner's IPs like https://ipv4.icanhazip.com/ and https://ipv6.icanhazip.com/
 - hreflang
 - Soft 404
