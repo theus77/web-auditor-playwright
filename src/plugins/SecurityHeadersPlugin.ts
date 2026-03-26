@@ -1,5 +1,5 @@
 import { BasePlugin } from "../engine/BasePlugin.js";
-import { IPlugin, PluginPhase, ResourceContext } from "../engine/types.js";
+import { EngineState, IPlugin, PluginPhase, Report, ResourceContext } from "../engine/types.js";
 
 type SecurityHeadersPluginOptions = {
     auditOnlyStartUrl?: boolean;
@@ -16,6 +16,11 @@ type ScoreItem = {
     id: string;
     passed: boolean;
     weight: number;
+};
+
+type SecurityHeadersState = {
+    grade: string;
+    score: number;
 };
 
 export class SecurityHeadersPlugin extends BasePlugin implements IPlugin {
@@ -424,10 +429,9 @@ export class SecurityHeadersPlugin extends BasePlugin implements IPlugin {
             .filter((item) => item.passed)
             .reduce((sum, item) => sum + item.weight, 0);
 
-        const score = maxScore > 0 ? Math.round((obtainedScore / maxScore) * 100) : 0;
-        ctx.engineState.securityHeaderScore = score;
-        const grade = this.gradeFromScore(score);
-        ctx.engineState.securityHeaderGrade = grade;
+        const state = this.getState(ctx.engineState);
+        state.score = maxScore > 0 ? Math.round((obtainedScore / maxScore) * 100) : 0;
+        state.grade = this.gradeFromScore(state.score);
 
         const details = this.scoreItems.map((item) => ({
             id: item.id,
@@ -435,29 +439,29 @@ export class SecurityHeadersPlugin extends BasePlugin implements IPlugin {
             weight: item.weight,
         }));
 
-        const summary = `HTTP security score for the start URL: ${score}/100 (${grade}).`;
+        const summary = `HTTP security score for the start URL: ${state.score}/100 (${state.grade}).`;
 
-        if (score >= 90) {
+        if (state.score >= 90) {
             this.registerInfo(ctx, "security", "SECURITY_HEADERS_SCORE", summary, {
-                score,
-                grade,
+                score: state.score,
+                grade: state.grade,
                 details,
             });
             return;
         }
 
-        if (score >= 70) {
+        if (state.score >= 70) {
             this.registerWarning(ctx, "security", "SECURITY_HEADERS_SCORE", summary, {
-                score,
-                grade,
+                score: state.score,
+                grade: state.grade,
                 details,
             });
             return;
         }
 
         this.registerError(ctx, "security", "SECURITY_HEADERS_SCORE", summary, {
-            score,
-            grade,
+            score: state.score,
+            grade: state.grade,
             details,
         });
     }
@@ -473,6 +477,21 @@ export class SecurityHeadersPlugin extends BasePlugin implements IPlugin {
 
     private addScore(id: string, passed: boolean, weight: number): void {
         this.scoreItems.push({ id, passed, weight });
+    }
+
+    private getState(state: EngineState): SecurityHeadersState {
+        const existing = state.any[this.name];
+        if (this.isSecurityHeadersState(existing)) {
+            return existing;
+        }
+
+        const created: SecurityHeadersState = {
+            grade: "F",
+            score: 0,
+        };
+
+        state.any[this.name] = created;
+        return created;
     }
 
     private getSetCookieHeaders(ctx: ResourceContext): string[] {
@@ -568,5 +587,35 @@ export class SecurityHeadersPlugin extends BasePlugin implements IPlugin {
             .split(";")
             .map((part) => part.trim().toLowerCase())
             .some((part) => part === directiveName || part.startsWith(`${directiveName} `));
+    }
+
+    private isSecurityHeadersState(value: unknown): value is SecurityHeadersState {
+        if (!value || typeof value !== "object") {
+            return false;
+        }
+
+        const record = value as Record<string, unknown>;
+        return typeof record.grade === "string" && typeof record.score === "number";
+    }
+
+    public getReport(engineState: EngineState): Report {
+        const state = this.getState(engineState);
+
+        return {
+            plugin: this.name,
+            label: "Security Headers",
+            items: [
+                {
+                    key: "grade",
+                    label: "Grade",
+                    value: state.grade,
+                },
+                {
+                    key: "score",
+                    label: "Score",
+                    value: state.score,
+                },
+            ],
+        };
     }
 }

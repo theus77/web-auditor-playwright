@@ -245,8 +245,6 @@ export type EngineState = {
     any: Record<string, unknown>;
     findings: Finding[];
     inventory: InventoryItem[];
-    securityHeaderGrade?: string;
-    securityHeaderScore?: number;
     tlsGrade?: string;
     tlsScore?: number;
     tlsValidFrom?: string;
