@@ -78,6 +78,7 @@ The tool can be configured using [environment variables](#environment-variables)
     - `@context": "https://schema.org"`
 - Download website plugin
 - Detects duplicates
+- page with Inline code
 
 ## Installing Playwright and launch an audit locally
 
