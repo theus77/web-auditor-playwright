@@ -132,6 +132,13 @@ export type FindingCode =
     | "TITLE_BRAND_DUPLICATED"
     | "TITLE_MAIN_TOO_SHORT"
     | "TITLE_TOO_MANY_PARTS"
+    | "URL_CONSECUTIVE_HYPHENS"
+    | "URL_UNDERSCORE"
+    | "URL_TECHNICAL_EXTENSION"
+    | "URL_UPPERCASE"
+    | "URL_TOO_LONG"
+    | "URL_SPECIAL_CHARACTERS"
+    | "URL_SPACE"
     // URL / Crawl
     | "MISSING_URL"
     | "EMPTY_URL"

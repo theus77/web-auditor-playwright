@@ -13,6 +13,7 @@ import { StatsCollectorPlugin } from "./plugins/StatsCollectorPlugin.js";
 import { ConsoleStatusPlugin } from "./plugins/ConsoleStatusPlugin.js";
 import { SaveReportAsJsonPlugin } from "./plugins/SaveReportAsJsonPlugin.js";
 import { HtmlProcessorPlugin } from "./plugins/HtmlProcessorPlugin.js";
+import { SeoUrlRulesPlugin } from "./plugins/SeoUrlRulesPlugin.js";
 import { SoftHttpErrorPlugin } from "./plugins/SoftHttpErrorPlugin.js";
 import { DownloaderPlugin } from "./plugins/DownloaderPlugin.js";
 import { CleanDownloadedPlugin } from "./plugins/CleanDownloadedPlugin.js";
@@ -167,6 +168,7 @@ async function main() {
             }),
         )
         .register(new HtmlProcessorPlugin())
+        .register(new SeoUrlRulesPlugin())
         .register(
             new SoftHttpErrorPlugin({
                 soft404Patterns: soft404Patterns.length > 0 ? soft404Patterns : undefined,
