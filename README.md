@@ -77,7 +77,6 @@ The tool can be configured using [environment variables](#environment-variables)
 - Analyse text's complexity (something like [Scolarius](https://www.scolarius.com/))
 - JSON-LD structure
     - `@context": "https://schema.org"`
-- Check the format validity of email et tel links
 
 ## Installing Playwright and launch an audit locally
 
