@@ -76,6 +76,8 @@ The tool can be configured using [environment variables](#environment-variables)
 - Analyse text's complexity (something like [Scolarius](https://www.scolarius.com/))
 - JSON-LD structure
     - `@context": "https://schema.org"`
+- Download website plugin
+- Detects duplicates
 
 ## Installing Playwright and launch an audit locally
 
@@ -247,6 +249,13 @@ Examples:
 | html-processor     | TITLE_BRAND_DUPLICATED     | Brand duplicated                                                  | SEO             | Fix                 |
 | html-processor     | TITLE_MAIN_TOO_SHORT       | Main part too short                                               | SEO             | Improve             |
 | html-processor     | TITLE_TOO_MANY_PARTS       | Too many segments                                                 | SEO             | Simplify            |
+| seo-url-rules      | URL_CONSECUTIVE_HYPHENS    | URL contains consecutive hyphens                                  | SEO, Integrator | Simplify slug       |
+| seo-url-rules      | URL_UNDERSCORE             | URL contains an underscore                                        | SEO, Integrator | Replace with hyphen |
+| seo-url-rules      | URL_TECHNICAL_EXTENSION    | URL exposes a technical file extension                            | SEO, Integrator | Remove extension    |
+| seo-url-rules      | URL_UPPERCASE              | URL contains uppercase characters                                 | SEO, Integrator | Use lowercase       |
+| seo-url-rules      | URL_TOO_LONG               | URL is excessively long                                           | SEO, Integrator | Shorten URL         |
+| seo-url-rules      | URL_SPECIAL_CHARACTERS     | URL contains special or accented characters                       | SEO, Integrator | Normalize slug      |
+| seo-url-rules      | URL_SPACE                  | URL contains spaces                                               | SEO, Integrator | Remove spaces       |
 | soft-http-error    | SOFT_404_DETECTED          | Page looks like a soft 404 while returning a successful HTTP code | Webmaster       | Fix status or page  |
 | soft-http-error    | SOFT_500_DETECTED          | Page looks like a soft 500 while returning a successful HTTP code | Webmaster       | Fix status or page  |
 
