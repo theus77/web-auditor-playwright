@@ -18,6 +18,10 @@ export class SiteDumpPlugin extends BasePlugin implements IPlugin {
     }
 
     applies(ctx: ResourceContext): boolean {
+        if (typeof ctx.status === "number" && ctx.status >= 400) {
+            return false;
+        }
+
         if (ctx.report.is_web) {
             return typeof ctx.mime === "string" && ctx.mime.includes("text/html");
         }
