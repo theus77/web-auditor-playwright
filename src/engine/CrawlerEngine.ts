@@ -320,7 +320,6 @@ export class CrawlerEngine {
 
             if (this.stopRequested) {
                 state.stopConfirmedAt = new Date().toISOString();
-                this.store.savePluginState(runId, state.any);
             }
             this.store.finishRun(runId, "finished");
 
@@ -329,6 +328,7 @@ export class CrawlerEngine {
             this.store.finishRun(runId, "failed");
             throw error;
         } finally {
+            this.store.savePluginState(runId, state.any);
             this.currentState = undefined;
         }
     }
