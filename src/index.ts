@@ -296,6 +296,7 @@ async function main() {
             rateLimitMs: Number(process.env.RATE_LIMIT_MS ?? 500),
             urlAllowlist: urlAllowlist,
             urlBlocklist: urlBlocklist,
+            reportDir: path.join(reportOutputDir, websiteId),
         },
         registry,
     );
@@ -306,6 +307,7 @@ async function main() {
     });
 
     stopController.start();
+    engine.init();
     let state;
     try {
         state = await engine.run();

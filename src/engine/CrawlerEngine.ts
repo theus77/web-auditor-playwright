@@ -12,6 +12,8 @@ import { getStatusMessage, isSameOrigin, normalizeUrl, parseMime } from "./utils
 import { RateLimiter } from "./RateLimiter.js";
 import { createInitialReport } from "./report.js";
 import { ErrorUtils } from "../utils/ErrorUtils.js";
+import path from "node:path";
+import { AuditStore } from "./AuditStore.js";
 
 type UrlDecision = { allowed: true } | { allowed: false; reason: UrlRejectionReason };
 
@@ -400,5 +402,10 @@ export class CrawlerEngine {
 
     public isStopRequested(): boolean {
         return this.stopRequested;
+    }
+
+    public init(): void {
+        const store = new AuditStore(path.join(this.opts.reportDir, "audit.db"));
+        store.initSchema();
     }
 }
