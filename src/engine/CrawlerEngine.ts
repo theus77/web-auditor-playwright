@@ -1,19 +1,22 @@
+import path from "node:path";
+
 import { chromium, type ConsoleMessage } from "playwright";
+
+import { ErrorUtils } from "../utils/ErrorUtils.js";
+import { AuditStore } from "./AuditStore.js";
+import { PluginRegistry } from "./PluginRegistry.js";
+import { createInitialReport } from "./report.js";
 import type {
     CrawlOptions,
     EngineState,
     EnqueueRequest,
     EnqueueResult,
+    NextUrlCandidate,
     ResourceContext,
     UrlRejectionReason,
 } from "./types.js";
-import { PluginRegistry } from "./PluginRegistry.js";
 import { getStatusMessage, isSameOrigin, normalizeUrl, parseMime } from "./utils.js";
 import { RateLimiter } from "./RateLimiter.js";
-import { createInitialReport } from "./report.js";
-import { ErrorUtils } from "../utils/ErrorUtils.js";
-import path from "node:path";
-import { AuditStore } from "./AuditStore.js";
 
 type UrlDecision = { allowed: true } | { allowed: false; reason: UrlRejectionReason };
 
@@ -21,7 +24,7 @@ export class CrawlerEngine {
     private readonly rateLimiter: RateLimiter;
     private stopRequested = false;
     private currentState?: EngineState;
-    private store: AuditStore;
+    private readonly store: AuditStore;
 
     constructor(
         private opts: CrawlOptions,
@@ -45,7 +48,7 @@ export class CrawlerEngine {
             infoCount: 0,
             warningCount: 0,
             errorCount: 0,
-            queueSize: 1,
+            queueSize: 0,
             activeWorkers: 0,
             maxPages: this.opts.maxPages,
             any: {},
@@ -55,8 +58,8 @@ export class CrawlerEngine {
         };
         this.currentState = state;
 
-        const queue: { url: string; depth: number }[] = [];
-        this.enqueueUrl({ url: start, depth: 0, source: "engine:start" }, queue, state, start);
+        const runId = this.store.createRun({ startUrl: start });
+        this.enqueueUrl({ url: start, depth: 0, source: "engine:start" }, runId, state, start);
 
         const browser = await chromium.launch({ headless: true });
         const context = await browser.newContext({
@@ -64,15 +67,15 @@ export class CrawlerEngine {
             ignoreHTTPSErrors: this.opts.ignoreHttpsError,
         });
 
-        const processOne = async (item: { url: string; depth: number }) => {
+        const processOne = async (item: NextUrlCandidate) => {
             state.activeWorkers += 1;
-            state.queueSize = queue.length;
 
             const page = await context.newPage();
             page.setDefaultNavigationTimeout(this.opts.navTimeoutMs);
 
             const consoleLogs: ResourceContext["console"] = [];
             const pageErrors: string[] = [];
+            let failedInStore = false;
 
             page.on("console", (msg: ConsoleMessage) => {
                 const type = msg.type();
@@ -106,7 +109,7 @@ export class CrawlerEngine {
                                 ...request,
                                 depth: effectiveDepth,
                             },
-                            queue,
+                            runId,
                             state,
                             start,
                         );
@@ -179,9 +182,6 @@ export class CrawlerEngine {
                 ctx.report.size = size;
 
                 await this.registry.runPhase("afterGoto", ctx);
-
-                state.queueSize = queue.length;
-
                 await this.registry.runPhase("process", ctx);
 
                 if (!ctx.report.is_web) {
@@ -197,14 +197,20 @@ export class CrawlerEngine {
                     ctx.downloadTrigger = "playwright-download";
                     await this.registry.runPhase("download", ctx);
                 } else {
+                    const errorMessage = ErrorUtils.errorMessage(
+                        "Failed to open or download the url",
+                        e,
+                    );
                     ctx.findings.push({
                         plugin: "engine",
                         category: "network",
                         type: "error",
                         code: "NAVIGATION_FAILED",
-                        message: ErrorUtils.errorMessage("Failed to open or download the url", e),
+                        message: errorMessage,
                         url: ctx.url,
                     });
+                    this.store.markUrlFailed(runId, item.id, errorMessage);
+                    failedInStore = true;
                     await this.registry.runPhase("error", ctx);
                 }
             } finally {
@@ -233,7 +239,6 @@ export class CrawlerEngine {
                     state.successCount += 1;
                 }
                 state.processedCount += 1;
-                state.queueSize = queue.length;
                 state.activeWorkers -= 1;
 
                 await page.close();
@@ -241,33 +246,42 @@ export class CrawlerEngine {
                 state.findings.push(...ctx.findings);
                 state.inventory.push({
                     depth: ctx.depth,
-                    mime: ctx.mime,
+                    mime: ctx.downloaded?.mime ?? ctx.report.mimetype ?? ctx.mime,
                     status: ctx.status,
-                    url: ctx.url,
+                    url: ctx.report.url ?? ctx.finalUrl ?? ctx.url,
                 });
                 await this.registry.runPhase("finally", ctx);
+
+                if (!failedInStore) {
+                    this.persistProcessedUrl(runId, item.id, ctx, start);
+                }
             }
         };
 
         try {
             let visited = 0;
-            while (queue.length > 0 && visited < this.opts.maxPages) {
-                const batch: { url: string; depth: number }[] = [];
+            while (visited < this.opts.maxPages) {
+                const batch: NextUrlCandidate[] = [];
                 while (
                     batch.length < this.opts.concurrency &&
-                    queue.length > 0 &&
                     visited + batch.length < this.opts.maxPages
                 ) {
-                    batch.push(queue.shift()!);
+                    const next = this.store.claimNextQueuedUrl(runId);
+                    if (!next) {
+                        break;
+                    }
+                    batch.push(next);
+                    state.queueSize = Math.max(0, state.queueSize - 1);
                 }
 
-                state.queueSize = queue.length;
+                if (batch.length === 0) {
+                    break;
+                }
+
                 await Promise.all(batch.map(processOne));
                 visited += batch.length;
-                state.queueSize = queue.length;
 
                 if (this.stopRequested) {
-                    queue.length = 0;
                     state.queueSize = 0;
                     break;
                 }
@@ -275,8 +289,12 @@ export class CrawlerEngine {
 
             await context.close();
             await browser.close();
+            this.store.finishRun(runId, "finished");
 
             return state;
+        } catch (error) {
+            this.store.finishRun(runId, "failed");
+            throw error;
         } finally {
             this.currentState = undefined;
         }
@@ -284,7 +302,7 @@ export class CrawlerEngine {
 
     private enqueueUrl(
         request: EnqueueRequest,
-        queue: Array<{ url: string; depth: number }>,
+        runId: number,
         state: EngineState,
         startUrl: string,
     ): EnqueueResult {
@@ -332,15 +350,7 @@ export class CrawlerEngine {
             };
         }
 
-        if (state.seen.has(normalizedUrl)) {
-            return {
-                accepted: false,
-                normalizedUrl,
-                reason: "already_seen",
-            };
-        }
-
-        const reservedCount = state.processedCount + queue.length + state.activeWorkers;
+        const reservedCount = state.processedCount + state.queueSize + state.activeWorkers;
         if (reservedCount >= this.opts.maxPages) {
             return {
                 accepted: false,
@@ -349,17 +359,71 @@ export class CrawlerEngine {
             };
         }
 
-        state.seen.add(normalizedUrl);
-        queue.push({
-            url: normalizedUrl,
+        const inserted = this.store.enqueueUrl({
+            runId,
+            url: request.url,
+            normalizedUrl,
             depth,
+            sourceUrl: request.source ?? null,
         });
-        state.queueSize = queue.length;
+
+        if (!inserted) {
+            return {
+                accepted: false,
+                normalizedUrl,
+                reason: "already_seen",
+            };
+        }
+
+        state.seen.add(normalizedUrl);
+        state.queueSize += 1;
 
         return {
             accepted: true,
             normalizedUrl,
         };
+    }
+
+    private persistProcessedUrl(
+        runId: number,
+        urlId: number,
+        ctx: ResourceContext,
+        startUrl: string,
+    ): void {
+        const discoveredLinks = (ctx.report.links ?? [])
+            .map((link) => {
+                try {
+                    const normalizedToUrl = normalizeUrl(link.url);
+                    return {
+                        toUrl: link.url,
+                        normalizedToUrl,
+                        linkText: link.text ?? null,
+                        nofollow: false,
+                        isInternal: isSameOrigin(normalizedToUrl, startUrl),
+                    };
+                } catch {
+                    return null;
+                }
+            })
+            .filter((link): link is NonNullable<typeof link> => link !== null);
+
+        this.store.persistPageResult({
+            runId,
+            urlId,
+            httpStatus: ctx.status ?? null,
+            contentType: ctx.downloaded?.mime ?? ctx.report.mimetype ?? ctx.mime ?? null,
+            pageTitle: ctx.report.title ?? ctx.report.meta_title ?? null,
+            findings: ctx.findings.map((finding) => ({
+                plugin: finding.plugin,
+                category: finding.category,
+                code: finding.code,
+                severity: finding.type,
+                message: finding.message,
+                resourceUrl: finding.url,
+                payload: finding.data,
+            })),
+            discoveredLinks,
+        });
     }
 
     private evaluateUrl(url: string): UrlDecision {
@@ -390,20 +454,14 @@ export class CrawlerEngine {
         return { allowed: true };
     }
 
-    public requestStop(): void {
-        if (this.stopRequested) {
-            return;
-        }
-
+    requestStop(): void {
         this.stopRequested = true;
-
         if (this.currentState) {
             this.currentState.stopRequested = true;
-            this.currentState.stopConfirmedAt ??= new Date().toISOString();
         }
     }
 
-    public isStopRequested(): boolean {
+    isStopRequested(): boolean {
         return this.stopRequested;
     }
 }
