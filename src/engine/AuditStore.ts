@@ -1,9 +1,27 @@
 import Database from "better-sqlite3";
 import fs from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 import { EnqueueUrlInput, NextUrlCandidate, PersistPageResultInput } from "./types.js";
-import { fileURLToPath } from "node:url";
+
+type RunRow = {
+    id: number;
+    start_url: string;
+    started_at: string;
+    status: string;
+};
+
+type RunSnapshot = {
+    startUrl: string;
+    startedAt: string;
+    normalizedUrls: string[];
+    processedCount: number;
+    queuedCount: number;
+    infoCount: number;
+    warningCount: number;
+    errorCount: number;
+};
 
 export class AuditStore {
     private db: Database.Database;
@@ -35,6 +53,57 @@ export class AuditStore {
         const result = stmt.run(input.startUrl, new Date().toISOString());
 
         return Number(result.lastInsertRowid);
+    }
+
+    public getRun(
+        runId: number,
+    ): { id: number; startUrl: string; startedAt: string; status: string } | null {
+        const row = this.db
+            .prepare(
+                `
+      SELECT id, start_url, started_at, status
+      FROM crawl_runs
+      WHERE id = ?
+    `,
+            )
+            .get(runId) as RunRow | undefined;
+
+        if (!row) {
+            return null;
+        }
+
+        return {
+            id: row.id,
+            startUrl: row.start_url,
+            startedAt: row.started_at,
+            status: row.status,
+        };
+    }
+
+    public resumeRun(runId: number): void {
+        const tx = this.db.transaction(() => {
+            this.db
+                .prepare(
+                    `
+      UPDATE crawl_runs
+      SET status = 'running', finished_at = NULL
+      WHERE id = ?
+    `,
+                )
+                .run(runId);
+
+            this.db
+                .prepare(
+                    `
+      UPDATE urls
+      SET status = 'queued'
+      WHERE run_id = ? AND status = 'processing' AND visited_at IS NULL
+    `,
+                )
+                .run(runId);
+        });
+
+        tx();
     }
 
     public finishRun(runId: number, status: "finished" | "failed" = "finished"): void {
@@ -178,6 +247,132 @@ export class AuditStore {
         });
 
         tx();
+    }
+
+    public savePluginState(runId: number, pluginState: Record<string, unknown>): void {
+        const tx = this.db.transaction(() => {
+            this.db.prepare(`DELETE FROM plugin_state WHERE run_id = ?`).run(runId);
+
+            const insert = this.db.prepare(`
+        INSERT INTO plugin_state (run_id, state_key, payload_json, updated_at)
+        VALUES (?, ?, ?, ?)
+      `);
+            const updatedAt = new Date().toISOString();
+
+            for (const [stateKey, payload] of Object.entries(pluginState)) {
+                if (payload === undefined) {
+                    continue;
+                }
+
+                insert.run(runId, stateKey, JSON.stringify(payload), updatedAt);
+            }
+        });
+
+        tx();
+    }
+
+    public loadPluginState(runId: number): Record<string, unknown> {
+        const rows = this.db
+            .prepare(
+                `
+      SELECT state_key, payload_json
+      FROM plugin_state
+      WHERE run_id = ?
+      ORDER BY state_key ASC
+    `,
+            )
+            .all(runId) as Array<{ state_key: string; payload_json: string }>;
+
+        const result: Record<string, unknown> = {};
+        for (const row of rows) {
+            result[row.state_key] = JSON.parse(row.payload_json);
+        }
+
+        return result;
+    }
+
+    public getRunSnapshot(runId: number): RunSnapshot | null {
+        const run = this.getRun(runId);
+        if (!run) {
+            return null;
+        }
+
+        const normalizedUrls = this.db
+            .prepare(
+                `
+      SELECT normalized_url
+      FROM urls
+      WHERE run_id = ?
+      ORDER BY id ASC
+    `,
+            )
+            .all(runId)
+            .map((row) => (row as { normalized_url: string }).normalized_url);
+
+        const processedCount = Number(
+            (
+                this.db
+                    .prepare(
+                        `
+      SELECT COUNT(*) AS count
+      FROM urls
+      WHERE run_id = ? AND visited_at IS NOT NULL
+    `,
+                    )
+                    .get(runId) as { count: number }
+            ).count,
+        );
+
+        const queuedCount = Number(
+            (
+                this.db
+                    .prepare(
+                        `
+      SELECT COUNT(*) AS count
+      FROM urls
+      WHERE run_id = ? AND status = 'queued'
+    `,
+                    )
+                    .get(runId) as { count: number }
+            ).count,
+        );
+
+        const severityCounts = this.db
+            .prepare(
+                `
+      SELECT severity, COUNT(DISTINCT url_id) AS count
+      FROM findings
+      WHERE run_id = ? AND url_id IS NOT NULL
+      GROUP BY severity
+    `,
+            )
+            .all(runId) as Array<{ severity: string; count: number }>;
+
+        let infoCount = 0;
+        let warningCount = 0;
+        let errorCount = 0;
+        for (const row of severityCounts) {
+            if (row.severity === "info") {
+                infoCount = Number(row.count);
+            }
+            if (row.severity === "warning") {
+                warningCount = Number(row.count);
+            }
+            if (row.severity === "error") {
+                errorCount = Number(row.count);
+            }
+        }
+
+        return {
+            startUrl: run.startUrl,
+            startedAt: run.startedAt,
+            normalizedUrls,
+            processedCount,
+            queuedCount,
+            infoCount,
+            warningCount,
+            errorCount,
+        };
     }
 
     public getFindingCounts(runId: number): Array<{

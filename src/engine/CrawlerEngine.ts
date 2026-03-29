@@ -5,6 +5,7 @@ import { chromium, type ConsoleMessage } from "playwright";
 import { ErrorUtils } from "../utils/ErrorUtils.js";
 import { AuditStore } from "./AuditStore.js";
 import { PluginRegistry } from "./PluginRegistry.js";
+import { RateLimiter } from "./RateLimiter.js";
 import { createInitialReport } from "./report.js";
 import type {
     CrawlOptions,
@@ -16,7 +17,6 @@ import type {
     UrlRejectionReason,
 } from "./types.js";
 import { getStatusMessage, isSameOrigin, normalizeUrl, parseMime } from "./utils.js";
-import { RateLimiter } from "./RateLimiter.js";
 
 type UrlDecision = { allowed: true } | { allowed: false; reason: UrlRejectionReason };
 
@@ -36,29 +36,65 @@ export class CrawlerEngine {
     }
 
     async run(): Promise<EngineState> {
-        const start = normalizeUrl(this.opts.startUrl);
-        const origin = new URL(start).origin;
+        const initialStart = normalizeUrl(this.opts.startUrl);
 
-        const state: EngineState = {
-            startedAt: new Date(),
-            origin,
-            seen: new Set(),
-            processedCount: 0,
-            successCount: 0,
-            infoCount: 0,
-            warningCount: 0,
-            errorCount: 0,
-            queueSize: 0,
-            activeWorkers: 0,
-            maxPages: this.opts.maxPages,
-            any: {},
-            stopRequested: false,
-        };
-        this.currentState = state;
+        let runId: number;
+        let start = initialStart;
+        let state: EngineState;
 
-        const runId = this.store.createRun({ startUrl: start });
+        if (typeof this.opts.resumeRunId === "number") {
+            const resumeRunId = this.opts.resumeRunId;
+            const existingRun = this.store.getRun(resumeRunId);
+            if (!existingRun) {
+                throw new Error(`Run ${resumeRunId} not found in audit database`);
+            }
+
+            this.store.resumeRun(resumeRunId);
+            const runSnapshot = this.store.getRunSnapshot(resumeRunId);
+            if (!runSnapshot) {
+                throw new Error(`Run ${resumeRunId} not found in audit database`);
+            }
+
+            start = normalizeUrl(runSnapshot.startUrl);
+            runId = resumeRunId;
+
+            state = {
+                startedAt: new Date(runSnapshot.startedAt),
+                origin: new URL(start).origin,
+                seen: new Set(runSnapshot.normalizedUrls),
+                processedCount: runSnapshot.processedCount,
+                successCount: Math.max(0, runSnapshot.processedCount - runSnapshot.errorCount),
+                infoCount: runSnapshot.infoCount,
+                warningCount: runSnapshot.warningCount,
+                errorCount: runSnapshot.errorCount,
+                queueSize: runSnapshot.queuedCount,
+                activeWorkers: 0,
+                maxPages: this.opts.maxPages,
+                any: this.store.loadPluginState(resumeRunId),
+                stopRequested: false,
+            };
+        } else {
+            runId = this.store.createRun({ startUrl: start });
+            state = {
+                startedAt: new Date(),
+                origin: new URL(start).origin,
+                seen: new Set(),
+                processedCount: 0,
+                successCount: 0,
+                infoCount: 0,
+                warningCount: 0,
+                errorCount: 0,
+                queueSize: 0,
+                activeWorkers: 0,
+                maxPages: this.opts.maxPages,
+                any: {},
+                stopRequested: false,
+            };
+            this.enqueueUrl({ url: start, depth: 0, source: "engine:start" }, runId, state, start);
+        }
+
         state.any["runId"] = runId;
-        this.enqueueUrl({ url: start, depth: 0, source: "engine:start" }, runId, state, start);
+        this.currentState = state;
 
         const browser = await chromium.launch({ headless: true });
         const context = await browser.newContext({
@@ -251,7 +287,7 @@ export class CrawlerEngine {
         };
 
         try {
-            let visited = 0;
+            let visited = state.processedCount;
             while (visited < this.opts.maxPages) {
                 const batch: NextUrlCandidate[] = [];
                 while (
@@ -281,6 +317,11 @@ export class CrawlerEngine {
 
             await context.close();
             await browser.close();
+
+            if (this.stopRequested) {
+                state.stopConfirmedAt = new Date().toISOString();
+                this.store.savePluginState(runId, state.any);
+            }
             this.store.finishRun(runId, "finished");
 
             return state;

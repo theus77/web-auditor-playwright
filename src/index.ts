@@ -34,6 +34,7 @@ import { TextUtils } from "./utils/TextUtils.js";
 import { XlsxExporter } from "./reporting/XlsxExporter.js";
 import { Report } from "./engine/types.js";
 import { AuditStore } from "./engine/AuditStore.js";
+import fsp from "node:fs/promises";
 
 function buildSitemapXml(urls: string[]): string {
     const lines = [
@@ -111,6 +112,12 @@ function escapeXml(value: string): string {
 async function main() {
     const reportOutputDir = process.env.REPORT_OUTPUT_DIR ?? "./reports";
     const websiteId = process.env.WEBSITE_ID ?? "my_website";
+    const resumeRunIdValue = process.env.RESUME_RUN_ID?.trim();
+    const resumeRunId = resumeRunIdValue ? Number(resumeRunIdValue) : undefined;
+
+    if (resumeRunIdValue && !Number.isInteger(resumeRunId)) {
+        throw new Error(`Invalid RESUME_RUN_ID: ${resumeRunIdValue}`);
+    }
     const urlAllowlist = TextUtils.parseRegexList(process.env.URL_ALLOWLIST_REGEX);
     const urlBlocklist = TextUtils.parseRegexList(process.env.URL_BLOCKLIST_REGEX);
     const soft404Patterns = TextUtils.parseRegexList(process.env.SOFT_404_PATTERNS);
@@ -283,6 +290,7 @@ async function main() {
         );
     }
 
+    await fsp.mkdir(path.join(reportOutputDir, websiteId), { recursive: true });
     const outputFormat = process.env.OUTPUT_FORMAT ?? "table";
     const engine = new CrawlerEngine(
         {
@@ -298,6 +306,7 @@ async function main() {
             urlAllowlist: urlAllowlist,
             urlBlocklist: urlBlocklist,
             reportDir: path.join(reportOutputDir, websiteId),
+            resumeRunId,
         },
         registry,
     );
@@ -328,6 +337,11 @@ async function main() {
         plugin: "engine",
         label: "Crawler",
         items: [
+            {
+                key: "runId",
+                label: "Run ID",
+                value: runId,
+            },
             {
                 key: "origin",
                 label: "Origin",

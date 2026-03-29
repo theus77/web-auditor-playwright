@@ -56,6 +56,7 @@ export type CrawlOptions = {
     urlAllowlist?: RegExp[];
     urlBlocklist?: RegExp[];
     reportDir: string;
+    resumeRunId?: number;
 };
 
 export type DownloadArtifact = {
