@@ -52,10 +52,13 @@ export class PluginRegistry {
         }
     }
 
-    getSummaries(): PluginSummary[] {
+    getSummaries(state: EngineState): PluginSummary[] {
         return this.plugins
             .filter((plugin) => plugin.includeInSummary?.() ?? false)
-            .map((plugin) => plugin.getSummary?.())
+            .map((plugin) => {
+                plugin.hydrateFromState?.(state);
+                return plugin.getSummary?.();
+            })
             .filter((summary): summary is PluginSummary => summary !== null);
     }
 

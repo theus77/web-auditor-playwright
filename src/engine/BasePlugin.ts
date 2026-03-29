@@ -1,4 +1,6 @@
 import {
+    BaseState,
+    EngineState,
     FindingCategory,
     FindingCode,
     FindingData,
@@ -14,6 +16,7 @@ export abstract class BasePlugin {
     protected warnings = 0;
     protected errors = 0;
     protected abstract name: string;
+    private baseStateHydrated = false;
 
     includeInSummary(): boolean {
         return true;
@@ -23,9 +26,23 @@ export abstract class BasePlugin {
         return true;
     }
 
+    hydrateFromState(engineState: EngineState): void {
+        const existing = engineState.any[this.getBaseStateKey()] as BaseState | undefined;
+        if (!existing) {
+            this.baseStateHydrated = true;
+            return;
+        }
+
+        this.treatedUrls = existing.treatedUrls;
+        this.infos = existing.infos;
+        this.warnings = existing.warnings;
+        this.errors = existing.errors;
+        this.baseStateHydrated = true;
+    }
+
     getSummary(): PluginSummary {
         return {
-            plugin: (this as unknown as { name: string }).name,
+            plugin: this.name,
             treatedUrls: this.treatedUrls,
             infos: this.infos,
             warnings: this.warnings,
@@ -118,6 +135,7 @@ export abstract class BasePlugin {
                 this.errors += 1;
                 break;
         }
+        this.syncBaseState(ctx);
     }
 
     protected mergeLinks(
@@ -137,6 +155,7 @@ export abstract class BasePlugin {
     }
 
     private addAuditor(ctx: ResourceContext) {
+        this.ensureBaseState(ctx);
         ctx.audited ||= this.isAuditPlugin();
         ctx.auditors ??= [];
         if (ctx.auditors.includes(this.name)) {
@@ -144,5 +163,26 @@ export abstract class BasePlugin {
         }
         ctx.auditors.push(this.name);
         this.treatedUrls += 1;
+        this.syncBaseState(ctx);
+    }
+
+    private ensureBaseState(ctx: ResourceContext): void {
+        if (!this.baseStateHydrated) {
+            this.hydrateFromState(ctx.engineState);
+        }
+        this.syncBaseState(ctx);
+    }
+
+    private getBaseStateKey(): string {
+        return `base:${this.name}`;
+    }
+
+    private syncBaseState(ctx: ResourceContext): void {
+        ctx.engineState.any[this.getBaseStateKey()] = {
+            treatedUrls: this.treatedUrls,
+            infos: this.infos,
+            warnings: this.warnings,
+            errors: this.errors,
+        } satisfies BaseState;
     }
 }
