@@ -15,9 +15,11 @@ import { SaveReportAsJsonPlugin } from "./plugins/SaveReportAsJsonPlugin.js";
 import { SiteDumpPlugin } from "./plugins/SiteDumpPlugin.js";
 import { HtmlProcessorPlugin } from "./plugins/HtmlProcessorPlugin.js";
 import { CssAuditPlugin } from "./plugins/CssAuditPlugin.js";
+import { ImagePlugin } from "./plugins/ImagePlugin.js";
 import { SeoUrlRulesPlugin } from "./plugins/SeoUrlRulesPlugin.js";
 import { SoftHttpErrorPlugin } from "./plugins/SoftHttpErrorPlugin.js";
 import { DownloaderPlugin } from "./plugins/DownloaderPlugin.js";
+import { ImageMetadataPlugin } from "./plugins/ImageMetadataPlugin.js";
 import { CleanDownloadedPlugin } from "./plugins/CleanDownloadedPlugin.js";
 import { TextExtractorPlugin } from "./plugins/TextExtractorPlugin.js";
 import { PdfExtractorPlugin } from "./plugins/PdfExtractorPlugin.js";
@@ -33,6 +35,7 @@ import { PerformanceMetricsPlugin } from "./plugins/PerformanceMetricsPlugin.js"
 import { TlsCertificatePlugin } from "./plugins/TlsCertificatePlugin.js";
 import { IpSupportPlugin } from "./plugins/IpSupportPlugin.js";
 import { TextUtils } from "./utils/TextUtils.js";
+import { fetchPublicIpAddresses } from "./utils/PublicIpResolver.js";
 import { XlsxExporter } from "./reporting/XlsxExporter.js";
 import { Report } from "./engine/types.js";
 import { buildCrawlCompletionSummary } from "./engine/CrawlCompletionSummary.js";
@@ -211,6 +214,15 @@ async function main() {
             }),
         )
         .register(
+            new ImagePlugin({
+                lazyLoadingAboveFoldBufferPx: Number(
+                    process.env.IMAGE_LAZY_LOADING_ABOVE_FOLD_BUFFER_PX ?? 200,
+                ),
+                minLazyLoadingWidthPx: Number(process.env.IMAGE_MIN_LAZY_LOADING_WIDTH_PX ?? 80),
+                minLazyLoadingHeightPx: Number(process.env.IMAGE_MIN_LAZY_LOADING_HEIGHT_PX ?? 80),
+            }),
+        )
+        .register(
             new SeoUrlRulesPlugin({
                 maxUrlLength: Number(process.env.MAX_URL_LENGTH ?? 120),
             }),
@@ -233,6 +245,13 @@ async function main() {
             new DownloaderPlugin({
                 outputDir: process.env.DOWNLOAD_OUTPUT_DIR ?? "./downloads",
                 keepFiles: process.env.DOWNLOAD_KEEP_FILES === "true",
+            }),
+        )
+        .register(
+            new ImageMetadataPlugin({
+                maxFileSizeBytes: Number(
+                    process.env.IMAGE_METADATA_MAX_FILE_SIZE_BYTES ?? 20 * 1024 * 1024,
+                ),
             }),
         )
         .register(
@@ -373,6 +392,12 @@ async function main() {
     }
     const endedAt = new Date();
     const durationMs = endedAt.getTime() - state.startedAt.getTime();
+    const publicIpAddresses = await fetchPublicIpAddresses({
+        ipv4Url: process.env.CLIENT_PUBLIC_IPV4_URL ?? "https://ipv4.icanhazip.com/",
+        ipv6Url: process.env.CLIENT_PUBLIC_IPV6_URL ?? "https://ipv6.icanhazip.com/",
+        timeoutMs: Number(process.env.CLIENT_PUBLIC_IP_TIMEOUT_MS ?? 5000),
+    });
+
     const auditStore = new AuditStore(path.join(reportOutputDir, websiteId, "audit.db"));
     const runId = Number(state.any["runId"]);
     const issues = auditStore
@@ -420,6 +445,16 @@ async function main() {
                 key: "stopRequested",
                 label: "Stop Requested",
                 value: state.stopRequested,
+            },
+            {
+                key: "clientPublicIpv4",
+                label: "Client Public IPv4",
+                value: publicIpAddresses.ipv4 ?? "unavailable",
+            },
+            {
+                key: "clientPublicIpv6",
+                label: "Client Public IPv6",
+                value: publicIpAddresses.ipv6 ?? "unavailable",
             },
         ],
     };

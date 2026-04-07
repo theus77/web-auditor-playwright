@@ -51,7 +51,6 @@ The tool can be configured using [environment variables](#environment-variables)
 
 ## Roadmap
 
-- Enhanced reporting (aggregated dashboards)
 - Scheduling and automation
 - Lighthouse plugin every x pages
 - European compatible accessibility report in french, dutch, german and english
@@ -59,14 +58,9 @@ The tool can be configured using [environment variables](#environment-variables)
 - Validate robots.txt
     - Ensure that the robots.txt has a rule to throttle the robots
     - Ensure that all page's CSS are not blocked by robots.txt's rules
-- Images metadata plugin
-- Images integration in HTML pages plugin
-    - Non optimized images
-    - Lazy loading
 - Empty anchor links
 - Cookie plugin (lifetime)
 - Stats by locales
-- Tests runner's IPs like https://ipv4.icanhazip.com/ and https://ipv6.icanhazip.com/
 - Analyse text's complexity (something like [Scolarius](https://www.scolarius.com/))
 - JSON-LD structure (`@context": "https://schema.org"`)
 - Detects duplicates
@@ -200,11 +194,18 @@ npm start
 | `PERF_SLOW_DOMCONTENTLOADED_THRESHOLD_MS`   | `1500`                                                           | DOMContentLoaded threshold in milliseconds above which the page is reported as slow.                                                                                                                                                                                                                                 |
 | `CSS_MAX_INLINE_STYLE_ATTRIBUTES`           | `0`                                                              | Warns when a page contains more inline `style` attributes than this threshold.                                                                                                                                                                                                                                       |
 | `CSS_MAX_STYLE_TAGS`                        | `0`                                                              | Warns when a page contains more `<style>` tags than this threshold.                                                                                                                                                                                                                                                  |
+| `IMAGE_LAZY_LOADING_ABOVE_FOLD_BUFFER_PX`   | `200`                                                            | Additional pixel buffer below the initial viewport before the `image-audit` plugin warns that an image should use `loading="lazy"`.                                                                                                                                                                                  |
+| `IMAGE_MIN_LAZY_LOADING_WIDTH_PX`           | `80`                                                             | Minimum rendered image width before the `image-audit` plugin evaluates whether lazy loading is expected.                                                                                                                                                                                                             |
+| `IMAGE_MIN_LAZY_LOADING_HEIGHT_PX`          | `80`                                                             | Minimum rendered image height before the `image-audit` plugin evaluates whether lazy loading is expected.                                                                                                                                                                                                            |
+| `IMAGE_METADATA_MAX_FILE_SIZE_BYTES`        | `20971520`                                                       | Maximum file size in bytes that `image-metadata` will parse before emitting `IMAGE_METADATA_SKIPPED_TOO_LARGE`.                                                                                                                                                                                                      |
 | `TLS_CERT_AUDIT_ONLY_START_URL`             | `true`                                                           | If set to true, audits the TLS certificate only for the start URL.                                                                                                                                                                                                                                                   |
 | `TLS_CERT_WARN_IF_EXPIRES_IN_DAYS`          | `30`                                                             | Warns when the TLS certificate expires in N days or less.                                                                                                                                                                                                                                                            |
 | `TLS_CERT_TIMEOUT_MS`                       | `10000`                                                          | Maximum time in milliseconds allowed for the TLS certificate inspection.                                                                                                                                                                                                                                             |
 | `TLS_CERT_MIN_TLS_VERSION `                 | `TLSv1.2`                                                        | Minimum accepted negotiated TLS version (TLSv1.2 or TLSv1.3).                                                                                                                                                                                                                                                        |
 | `TLS_CERT_MIN_SCORE_FOR_ERROR`              | `50`                                                             | Marks the TLS certificate score finding as an error below this score.                                                                                                                                                                                                                                                |
+| `CLIENT_PUBLIC_IPV4_URL`                    | `https://ipv4.icanhazip.com/`                                    | Public service queried to resolve the audit runner public IPv4 address for the `engine` report.                                                                                                                                                                                                                      |
+| `CLIENT_PUBLIC_IPV6_URL`                    | `https://ipv6.icanhazip.com/`                                    | Public service queried to resolve the audit runner public IPv6 address for the `engine` report.                                                                                                                                                                                                                      |
+| `CLIENT_PUBLIC_IP_TIMEOUT_MS`               | `5000`                                                           | Timeout in milliseconds for resolving the audit runner public IPv4/IPv6 addresses.                                                                                                                                                                                                                                   |
 | `IP_SUPPORT_AUDIT_ONLY_START_URL`           | `true`                                                           | If set to true, audits IP support only for the start URL.                                                                                                                                                                                                                                                            |
 | `IP_SUPPORT_TIMEOUT_MS`                     | `5000`                                                           | Maximum time in milliseconds allowed for IPv4/IPv6 connectivity checks.                                                                                                                                                                                                                                              |
 | `IP_SUPPORT_TEST_CONNECTIVITY`              | `false`                                                          | If set to true, also tests TCP connectivity over IPv4 and IPv6.                                                                                                                                                                                                                                                      |
@@ -401,6 +402,76 @@ You can find detailed explanations, examples, and remediation guidance for each 
 | performance-metrics | SLOW_PAGE_LOAD            | Slow load time      | Integrator | Optimize performance   |
 | performance-metrics | SLOW_DOM_CONTENT_LOADED   | Slow DOM ready      | Integrator | Optimize scripts       |
 | performance-metrics | PERFORMANCE_MEASURED      | Performance metrics | Integrator | Analyze                |
+
+### Image Audit
+
+The `image-audit` plugin inspects HTML `<img>` usage and emits the following performance-oriented findings:
+
+#### `IMAGE_MISSING_LAZY_LOADING`
+
+A below-the-fold image does not use `loading="lazy"`.
+
+Why it matters:
+Images that are initially outside the viewport may still be fetched eagerly, which increases network contention and slows down meaningful rendering.
+
+Typical fix:
+Add `loading="lazy"` to non-critical images rendered below the fold, or adjust the image plugin thresholds if the page has a justified eager-loading strategy.
+
+#### `IMAGE_MISSING_DIMENSIONS`
+
+An image is rendered without explicit `width` and/or `height` attributes.
+
+Why it matters:
+Missing intrinsic dimensions can contribute to layout shifts during page load, especially when image assets load after text and surrounding components.
+
+Typical fix:
+Set explicit `width` and `height` attributes matching the image ratio, or render the image through a component that reserves the correct layout space.
+
+#### `IMAGE_NON_OPTIMIZED_FORMAT`
+
+An image uses a legacy raster format without an obvious modern alternative such as AVIF or WebP.
+
+Why it matters:
+JPEG, PNG, GIF, BMP, and TIFF assets are often heavier than equivalent modern encodings, especially when no responsive `<picture>` source is provided.
+
+Typical fix:
+Prefer AVIF or WebP when compatible with your delivery stack, or serve responsive image sources through `<picture>` and `source[type]`.
+
+### Image Metadata
+
+The `image-metadata` plugin extracts technical metadata from downloaded image files and can emit the following findings:
+
+#### `IMAGE_METADATA_SKIPPED_TOO_LARGE`
+
+Image metadata extraction was skipped because the downloaded file is larger than `IMAGE_METADATA_MAX_FILE_SIZE_BYTES`.
+
+Why it matters:
+Very large binaries are expensive to read and parse during a crawl, especially when the goal is metadata inspection rather than full media processing.
+
+Typical fix:
+Raise `IMAGE_METADATA_MAX_FILE_SIZE_BYTES` if large source files are expected, or keep the threshold low to preserve crawl throughput.
+
+#### `IMAGE_METADATA_EXTRACTION_FAILED`
+
+The file looked like a supported image, but metadata extraction failed.
+
+Why it matters:
+This usually means the file is corrupted, mislabeled, truncated, or uses a structure the parser does not recognize.
+
+Typical fix:
+Validate the downloaded asset, verify the MIME type and file integrity, or extend the parser if the format is intentionally supported in your workflow.
+
+#### `IMAGE_COPYRIGHT_MISSING`
+
+The image metadata does not contain copyright information.
+
+Why it matters:
+Missing copyright metadata weakens ownership traceability and can make downstream reuse, legal review, or DAM workflows harder to enforce.
+
+Typical fix:
+Write copyright information into the source asset metadata before publication, or explicitly exempt assets that are not expected to carry rights metadata.
+
+The plugin writes extracted metadata into `report.metas` using keys such as `image_mime`, `image_format`, `image_width`, `image_height`, `image_bit_depth`, `image_color_type`, `image_progressive`, `image_animated`, `image_exif_orientation`, and `image_copyright` when available.
 
 ### Hreflang
 
