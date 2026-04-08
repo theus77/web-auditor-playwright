@@ -54,9 +54,7 @@ The tool can be configured using [environment variables](#environment-variables)
 - Scheduling and automation
 - Lighthouse plugin every x pages
 - European compatible accessibility report in french, dutch, german and english
-- Validate sitemap resources
 - Empty anchor links
-- Cookie plugin (lifetime)
 - Stats by locales
 - Analyse text's complexity (something like [Scolarius](https://www.scolarius.com/))
 - JSON-LD structure (`@context": "https://schema.org"`)
@@ -206,6 +204,7 @@ npm start
 | `IP_SUPPORT_AUDIT_ONLY_START_URL`           | `true`                                                           | If set to true, audits IP support only for the start URL.                                                                                                                                                                                                                                                            |
 | `IP_SUPPORT_TIMEOUT_MS`                     | `5000`                                                           | Maximum time in milliseconds allowed for IPv4/IPv6 connectivity checks.                                                                                                                                                                                                                                              |
 | `IP_SUPPORT_TEST_CONNECTIVITY`              | `false`                                                          | If set to true, also tests TCP connectivity over IPv4 and IPv6.                                                                                                                                                                                                                                                      |
+| `COOKIE_MAX_LIFETIME_DAYS`                  | `365`                                                            | Warns when a cookie lifetime exceeds this number of days.                                                                                                                                                                                                                                                            |
 | `ROBOTS_TXT_REQUIRE_CRAWL_DELAY`            | `true`                                                           | When enabled, `robots-txt` warns if the `User-agent: *` group does not define a `Crawl-delay`.                                                                                                                                                                                                                       |
 | `ROBOTS_TXT_REQUIRE_SITEMAP`                | `true`                                                           | When enabled, `robots-txt` warns if `robots.txt` does not declare any `Sitemap` directive.                                                                                                                                                                                                                           |
 
@@ -292,6 +291,16 @@ Examples:
 | robots-txt | ROBOTS_TXT_BLOCKS_JS           | Blocks used JavaScript        | Frontend, SEO   | Allow required JS     |
 | robots-txt | ROBOTS_TXT_BLOCKS_IMAGE        | Blocks used image resource    | Frontend, SEO   | Allow required images |
 
+### Sitemap
+
+| Plugin  | Code                              | Description                      | Profiles        | Recommended Actions            |
+| ------- | --------------------------------- | -------------------------------- | --------------- | ------------------------------ |
+| sitemap | SITEMAP_INVALID_XML               | Invalid sitemap XML              | Integrator      | Fix sitemap serialization      |
+| sitemap | SITEMAP_INVALID_ROOT              | Invalid sitemap root element     | Integrator, SEO | Use `urlset` or `sitemapindex` |
+| sitemap | SITEMAP_INVALID_URL               | Invalid sitemap `loc`            | Integrator, SEO | Fix invalid or missing URLs    |
+| sitemap | SITEMAP_DUPLICATE_URL             | Duplicate sitemap URL            | SEO             | Remove duplicates              |
+| sitemap | SITEMAP_PAGE_MISSING_FROM_SITEMAP | Crawled page absent from sitemap | SEO, Integrator | Add page to sitemap            |
+
 ### HTML Accessibility
 
 Lowercase finding codes (e.g. `area-alt` or `scrollable-region-focusable`) correspond to accessibility rules detected by the a11y-axe plugin.
@@ -352,6 +361,8 @@ You can find detailed explanations, examples, and remediation guidance for each 
 | security-headers | COOKIE_MISSING_SAMESITE             | Missing SameSite                     | Integrator | Add SameSite        |
 | security-headers | COOKIE_MISSING_HTTPONLY             | Missing HttpOnly                     | Integrator | Add HttpOnly        |
 | security-headers | COOKIE_MISSING_SECURE               | Missing Secure flag                  | Integrator | Add Secure          |
+| security-headers | COOKIE_EXCESSIVE_LIFETIME           | Excessive lifetime                   | Integrator | Reduce persistence  |
+| security-headers | COOKIE_THIRD_PARTY_DETECTED         | Third-party cookie detected          | Integrator | Review cookie scope |
 | security-headers | MISSING_CORP                        | Missing Cross-Origin-Resource-Policy | Infra      | Add header          |
 | security-headers | MISSING_COOP                        | Missing Cross-Origin-Opener-Policy   | Infra      | Add header          |
 | security-headers | MISSING_PERMISSIONS_POLICY          | Missing Permissions-Policy           | Infra      | Define policy       |
